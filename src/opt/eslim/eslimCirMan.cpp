@@ -924,6 +924,23 @@ namespace eSLIM {
     for (int i = 1; i <= getNofPos(); i++) {
       insertSorted(nodes[nodes.size() - i].get(), nodes_aux, replacement, out_map, invec);
     }
+    // Count reachable replacement gates that were inserted
+    int reachable_rep_gates = 0;
+
+    for (int i = replacement.getNofPis() + 1;
+         i < replacement.getNofObjs() - replacement.getNofPos();
+         i++)
+    {
+        if (replacement.nodes[i]->isTaboo == traversal_id)
+            reachable_rep_gates++;
+    }
+
+    std::cout
+        << "replacement.getNofGates() = "
+        << replacement.getNofGates()
+        << "\nreachable_rep_gates      = "
+        << reachable_rep_gates
+        << "\n";
     assert (nodes_aux.size() <= nodes.size());
     int current_depth = 0;
     for (int i = 0; i < getNofPos(); i++) {
