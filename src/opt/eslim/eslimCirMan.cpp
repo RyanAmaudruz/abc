@@ -865,6 +865,18 @@ namespace eSLIM {
         int nredundant = processRedundant(subcir);
         // When replacement is larger than subcircuit (size_diff < 0),
         // nredundant may not fully close the gap — skip the hard assert.
+        std::cout
+        << "old nodes      = " << nodes.size() << "\n"
+        << "new nodes      = " << nodes_aux.size() << "\n"
+        << "size_diff      = " << size_diff << "\n"
+        << "nredundant     = " << nredundant << "\n"
+        << "subcir size    = " << subcir.nodes.size() << "\n"
+        << "repl size      = " << replacement.getNofGates() << "\n";
+        int expected = nodes_aux.size() + size_diff + nredundant;
+        std::cout
+          << "delta = "
+          << (int)nodes.size() - expected
+          << "\n";
         if (size_diff >= 0) {
             assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
         }
