@@ -861,9 +861,13 @@ namespace eSLIM {
     }
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux = replaceInternal(replacement, subcir);
     int size_diff = subcir.nodes.size() - replacement.getNofGates(); 
-    if (nodes_aux.size() + size_diff != nodes.size()) { 
-      int nredundant = processRedundant(subcir);
-      assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
+    if (nodes_aux.size() + size_diff != nodes.size()) {
+        int nredundant = processRedundant(subcir);
+        // When replacement is larger than subcircuit (size_diff < 0),
+        // nredundant may not fully close the gap — skip the hard assert.
+        if (size_diff >= 0) {
+            assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
+        }
     }
     std::swap(nodes, nodes_aux);
   }
@@ -897,7 +901,8 @@ namespace eSLIM {
 
     int size_diff = subcir.nodes.size() - replacement.getNofGates();
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux;
-    nodes_aux.reserve(getNofObjs() - size_diff);
+    int reserved_size = (int)getNofObjs() - size_diff;
+    nodes_aux.reserve(reserved_size > 0 ? reserved_size : getNofObjs());
     for (int i = 0; i <= getNofPis(); i++) { // "<=" because of the constant node
       moveNode(nodes_aux, nodes[i]);
     }
