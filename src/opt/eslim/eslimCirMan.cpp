@@ -920,25 +920,29 @@ namespace eSLIM {
 
   int eSLIMCirMan::processRedundant(const Subcircuit& subcir) {
     int nredundant = 0;
-    std::vector<int> to_process (subcir.inputs.begin(), subcir.inputs.end());
-    std::unordered_set<int> seen (subcir.inputs.begin(), subcir.inputs.end());
+    std::vector<eSLIMCirObj*> to_process;
+    std::unordered_set<eSLIMCirObj*> seen;
+    for (int i : subcir.inputs) {
+      to_process.push_back(nodes[i].get());
+      seen.insert(nodes[i].get());
+    }
     while (to_process.size() > 0) {
-      int nd = to_process.back();
+      eSLIMCirObj* nd = to_process.back();
       to_process.pop_back();
-      if (nodes[nd] != nullptr && !inSubcircuit(*nodes[nd])) {
+      if (nd != nullptr && !inSubcircuit(*nd)) {
         // This is a redundant node that can be discarded
         nredundant++;
-        auto ptr = nodes[nd].get();
+        auto ptr = nd;
         if (taboo != nullptr) {
           taboo->removeRedundantNode(ptr);
         }
-        for (auto& f : nodes[nd]->fanins) {
-          f->fanouts.erase(nodes[nd].get());
+        for (auto& f : nd->fanins) {
+          f->fanouts.erase(nd);
           // in the dfs traversal the node was not copied
           if (!isCurrentTraversalId(*f)) {
-            auto [it, inserted] = seen.insert(f->node_id);
+            auto [it, inserted] = seen.insert(f);
             if (inserted) { // the node was not seen before
-              to_process.push_back(f->node_id);
+              to_process.push_back(f);
             }
           }
         }
