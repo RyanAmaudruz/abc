@@ -865,22 +865,19 @@ namespace eSLIM {
       taboo->discardSubcircuit(subcir);
     }
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux = replaceInternal(replacement, subcir);
-    std::cerr
-        << "replacement nodes      = " << replacement.nodes.size() << "\n"
-        << "replacement gates      = " << replacement.getNofGates() << "\n"
-        << "replacement pis        = " << replacement.getNofPis() << "\n"
-        << "replacement pos        = " << replacement.getNofPos() << "\n";
-    int size_diff = subcir.nodes.size() - replacement.getNofGates(); 
+    int repl_gates_used = 0;
+
+    for (int i = replacement.getNofPis() + 1;
+         i < replacement.getNofObjs() - replacement.getNofPos();
+         i++)
+    {
+        if (!replacement.nodes[i]) // moved
+            repl_gates_used++;
+    }
+
+    int size_diff = subcir.nodes.size() - repl_gates_used;
     if (nodes_aux.size() + size_diff != nodes.size()) { 
       int nredundant = processRedundant(subcir);
-      std::cerr
-          << "old_size     = " << nodes.size() << "\n"
-          << "new_size     = " << nodes_aux.size() << "\n"
-          << "subcir_nodes = " << subcir.nodes.size() << "\n"
-          << "rep_gates    = " << replacement.getNofGates() << "\n"
-          << "size_diff    = " << size_diff << "\n"
-          << "nredundant   = " << nredundant << "\n"
-          << "(nodes.size() - nodes_aux.size()) - size_diff   = " << (nodes.size() - nodes_aux.size()) - size_diff << "\n";
       assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
     }
     std::swap(nodes, nodes_aux);
@@ -903,164 +900,36 @@ namespace eSLIM {
     }
   }
 
-    std::vector<std::unique_ptr<eSLIMCirObj>>
-    eSLIMCirMan::replaceInternal(
-    eSLIMCirMan& replacement,
-    const Subcircuit& subcir)
-    {
-        std::unordered_map<int,int> out_map;
-        for (int i = 0; i < subcir.outputs.size(); i++) {
-            out_map[subcir.outputs[i]] = i;
-        }
+  std::vector<std::unique_ptr<eSLIMCirObj>> eSLIMCirMan::replaceInternal(eSLIMCirMan& replacement, const Subcircuit& subcir) {
+    std::unordered_map<int,int> out_map;
+    for (int i = 0; i < subcir.outputs.size(); i++) {
+      out_map[subcir.outputs[i]] = i;
+    }
+    std::vector<eSLIMCirObj*> invec;
+    for (int i = 0; i < subcir.inputs.size(); i++) {
+      invec.push_back(nodes[subcir.inputs[i]].get());
+    }
 
-        std::vector<eSLIMCirObj*> invec;
-        for (int i = 0; i < subcir.inputs.size(); i++) {
-            invec.push_back(nodes[subcir.inputs[i]].get());
-        }
-
-        int size_diff = subcir.nodes.size() - replacement.getNofGates();
-
-        std::cerr << "\n========== replaceInternal ==========\n";
-        std::cerr << "subcir.nodes.size() = "
-                  << subcir.nodes.size() << "\n";
-        std::cerr << "replacement.getNofGates() = "
-                  << replacement.getNofGates() << "\n";
-        std::cerr << "size_diff = "
-                  << size_diff << "\n";
-
-        std::cerr << "replacement objs = "
-                  << replacement.getNofObjs() << "\n";
-        std::cerr << "replacement pis = "
-                  << replacement.getNofPis() << "\n";
-        std::cerr << "replacement pos = "
-                  << replacement.getNofPos() << "\n";
-
-        int repl_gate_count = 0;
-        for (int i = replacement.getNofPis() + 1;
-             i < replacement.getNofObjs() - replacement.getNofPos();
-             i++) {
-            repl_gate_count++;
-        }
-
-    std::cerr << "replacement gate candidates = "
-              << repl_gate_count << "\n";
-
+    int size_diff = subcir.nodes.size() - replacement.getNofGates();
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux;
     nodes_aux.reserve(getNofObjs() - size_diff);
-
-    for (int i = 0; i <= getNofPis(); i++) {
-        moveNode(nodes_aux, nodes[i]);
+    for (int i = 0; i <= getNofPis(); i++) { // "<=" because of the constant node
+      moveNode(nodes_aux, nodes[i]);
     }
-
-    auto countMovedReplacementGates = [&]() {
-        int moved = 0;
-        int alive = 0;
-
-        for (int i = replacement.getNofPis() + 1;
-             i < replacement.getNofObjs() - replacement.getNofPos();
-             i++) {
-
-            if (replacement.nodes[i])
-                alive++;
-            else
-                moved++;
-        }
-
-        std::cerr
-            << "replacement gates moved="
-            << moved
-            << " alive="
-            << alive
-            << "\n";
-    };
-
-    countMovedReplacementGates();
 
     // it is possible that after the insertion no Po is reachable from some nodes.
-    // These nodes can be removed.
+    // These nodes can be remove.
     for (int i = 1; i <= getNofPos(); i++) {
-        insertSorted(
-            nodes[nodes.size() - i].get(),
-            nodes_aux,
-            replacement,
-            out_map,
-            invec);
+      insertSorted(nodes[nodes.size() - i].get(), nodes_aux, replacement, out_map, invec);
     }
-
-    countMovedReplacementGates();
-
-    std::cerr << "\nReplacement gates still present after insertion:\n";
-
-    for (int i = replacement.getNofPis() + 1;
-         i < replacement.getNofObjs() - replacement.getNofPos();
-         i++) {
-
-        if (replacement.nodes[i]) {
-            auto* n = replacement.nodes[i].get();
-
-            std::cerr
-                << "  repl idx=" << i
-                << " node_id=" << n->node_id
-                << " id=" << n->id
-                << " fanins=" << n->fanins.size()
-                << " fanouts=" << n->fanouts.size()
-                << "\n";
-        }
-    }
-
-    assert(nodes_aux.size() <= nodes.size());
-
+    assert (nodes_aux.size() <= nodes.size());
     int current_depth = 0;
-
     for (int i = 0; i < getNofPos(); i++) {
-        int po_id = getNofObjs() - getNofPos() + i;
-        moveNode(nodes_aux, nodes[po_id]);
-        current_depth =
-            std::max(current_depth,
-                     nodes_aux.back()->depth);
+      int po_id = getNofObjs() - getNofPos() + i;
+      moveNode(nodes_aux, nodes[po_id]);
+      current_depth = std::max(current_depth, nodes_aux.back()->depth);
     }
-
-    int aux_gate_count = 0;
-    for (auto const& n : nodes_aux) {
-        if (!n)
-            continue;
-
-        if (!isPi(n->node_id) &&
-            !isPo(n->node_id) &&
-            !isConst(n->node_id)) {
-            aux_gate_count++;
-        }
-    }
-
-    std::cerr << "\nFinal nodes_aux stats:\n";
-    std::cerr << "nodes_aux.size() = "
-              << nodes_aux.size() << "\n";
-    std::cerr << "estimated gates in nodes_aux = "
-              << aux_gate_count << "\n";
-    std::cerr << "=====================================\n";
-
     depth = current_depth;
-    for (int i = replacement.getNofPis() + 1;
-         i < replacement.getNofObjs() - replacement.getNofPos();
-         i++) {
-
-        auto* n = replacement.nodes[i].get();
-        if (!n) continue;
-
-        bool in_aux = false;
-        for (auto& x : nodes_aux) {
-            if (x && x->node_id == n->node_id) {
-                in_aux = true;
-                break;
-            }
-        }
-
-        std::cerr
-            << "repl node " << n->node_id
-            << " in_aux=" << in_aux
-            << " fanouts=" << n->fanouts.size()
-            << "\n";
-    }
     return nodes_aux;
   }
 
