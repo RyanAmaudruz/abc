@@ -1040,6 +1040,27 @@ namespace eSLIM {
     std::cerr << "=====================================\n";
 
     depth = current_depth;
+    for (int i = replacement.getNofPis() + 1;
+         i < replacement.getNofObjs() - replacement.getNofPos();
+         i++) {
+
+        auto* n = replacement.nodes[i].get();
+        if (!n) continue;
+
+        bool in_aux = false;
+        for (auto& x : nodes_aux) {
+            if (x && x->node_id == n->node_id) {
+                in_aux = true;
+                break;
+            }
+        }
+
+        std::cerr
+            << "repl node " << n->node_id
+            << " in_aux=" << in_aux
+            << " fanouts=" << n->fanouts.size()
+            << "\n";
+    }
     return nodes_aux;
   }
 
