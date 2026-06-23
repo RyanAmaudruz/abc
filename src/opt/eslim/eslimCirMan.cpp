@@ -1025,8 +1025,11 @@ namespace eSLIM {
         if (!n)
             continue;
 
-        if (!isPi(*n) && !isPo(*n) && !isConst(*n))
+        if (!isPi(n->node_id) &&
+            !isPo(n->node_id) &&
+            !isConst(n->node_id)) {
             aux_gate_count++;
+        }
     }
 
     std::cerr << "\nFinal nodes_aux stats:\n";
