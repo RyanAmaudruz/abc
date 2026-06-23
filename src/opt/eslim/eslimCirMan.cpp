@@ -865,7 +865,17 @@ namespace eSLIM {
       taboo->discardSubcircuit(subcir);
     }
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux = replaceInternal(replacement, subcir);
-    int size_diff = subcir.nodes.size() - replacement.getNofGates(); 
+    int repl_gates_used = 0;
+
+    for (int i = replacement.getNofPis() + 1;
+         i < replacement.getNofObjs() - replacement.getNofPos();
+         i++)
+    {
+        if (!replacement.nodes[i]) // moved
+            repl_gates_used++;
+    }
+
+    int size_diff = subcir.nodes.size() - repl_gates_used;
     if (nodes_aux.size() + size_diff != nodes.size()) { 
       int nredundant = processRedundant(subcir);
       assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
