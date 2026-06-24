@@ -85,6 +85,7 @@ namespace eSLIM {
       void addGateValueConstraint(int gtidx, int gt_val, const std::vector<int>& fanin_variables);
       void setupCycleConstraints();
       void setupAigerConstraints();
+      // void setupActivationBackwardPropagation();
 
       int setupOutputVariable(int output_index, int tt_index, int pattern_idx);
 

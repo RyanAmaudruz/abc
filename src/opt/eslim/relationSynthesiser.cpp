@@ -359,6 +359,17 @@ namespace eSLIM {
     }
   }
 
+  // // Set activation variables to false, in case a gate is not used.
+  // void RelationSynthesiser::setupActivationBackwardPropagation() {
+  //   for (int i = max_size - 1; i > 0; i--) {
+  //     // If the ith gate is not active and the i-1th gate is not an output then the i-1th gate is also not active.
+  //     std::vector<int> clause (gate_output_variables[i-1].begin(), gate_output_variables[i-1].end());
+  //     clause.push_back(gate_activation_variables[i]);
+  //     clause.push_back(-gate_activation_variables[i - 1]);
+  //     solver.addClause(clause);
+  //   }
+  // }
+
   void RelationSynthesiser::addCardinalityConstraint(const std::vector<int>& vars, unsigned int cardinality, int activator) {
     assert (cardinality > 0);
     assert (vars.size() >= cardinality);
@@ -407,6 +418,7 @@ namespace eSLIM {
           in_var = getNewVariable();
           defineConjunction(in_var, {v, component_outputs.back()[j]}, activator);
         } else {
+          // If both variables would be true, then at least cardinality + 1 variables are assigned to true.
           solver.addClause({-component_outputs.back().back(), -v});
         }
       }
@@ -528,11 +540,17 @@ namespace eSLIM {
 
   // Every gate is either an output or an input of another gate
   void RelationSynthesiser::addUseAllStepsConstraint() {
+    // setupActivationBackwardPropagation();
     for (int i = 0; i < max_size; i++) {
       std::vector<int> clause (gate_output_variables[i].begin(), gate_output_variables[i].end());
       clause.reserve(max_size - i + 1);
       for (int j = i + 1; j < max_size; j++) {
-        clause.push_back(selection_variables[j][subcir.inputs.size() + i]);
+        // clause.push_back(selection_variables[j][subcir.inputs.size() + i]);
+        int isused = getNewVariable();
+        // The gate is used by another (active) gate.
+        solver.addClause({-isused, selection_variables[j][subcir.inputs.size() + i]});
+        solver.addClause({-isused, gate_activation_variables[j]});
+        clause.push_back(isused);
       }
       clause.push_back(-gate_activation_variables[i]);
       solver.addClause(clause);
