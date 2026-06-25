@@ -867,8 +867,18 @@ namespace eSLIM {
     }
     std::vector<std::unique_ptr<eSLIMCirObj>> nodes_aux = replaceInternal(replacement, subcir);
     int size_diff = subcir.nodes.size() - replacement.getNofGates(); 
+    std::cerr << "[replace] nodes.size()=" << nodes.size()
+              << " nodes_aux.size()=" << nodes_aux.size()
+              << " size_diff=" << size_diff
+              << " subcir.nodes.size()=" << subcir.nodes.size()
+              << " replacement.getNofGates()=" << replacement.getNofGates()
+              << "\n";
     if (nodes_aux.size() + size_diff != nodes.size()) { 
       int nredundant = processRedundant(subcir);
+      std::cerr << "[replace] size mismatch — nredundant=" << nredundant
+                << " expected nodes_aux+size_diff+nredundant="
+                << (nodes_aux.size() + size_diff + nredundant)
+                << " vs nodes.size()=" << nodes.size() << "\n";
       assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
     }
     std::swap(nodes, nodes_aux);
@@ -914,6 +924,14 @@ namespace eSLIM {
       insertSorted(nodes[nodes.size() - i].get(), nodes_aux, replacement, out_map, invec);
     }
     assert (nodes_aux.size() <= nodes.size());
+    std::cerr << "[replaceInternal] after DFS: nodes_aux.size()=" << nodes_aux.size()
+              << " nodes.size()=" << nodes.size()
+              << " getNofPis()=" << getNofPis()
+              << " getNofPos()=" << getNofPos()
+              << " getNofGates()=" << getNofGates()
+              << " replacement.getNofGates()=" << replacement.getNofGates()
+              << " size_diff=" << size_diff
+              << "\n";
     int current_depth = 0;
     for (int i = 0; i < getNofPos(); i++) {
       int po_id = getNofObjs() - getNofPos() + i;
@@ -934,6 +952,13 @@ namespace eSLIM {
       if (nodes[nd] != nullptr && !inSubcircuit(*nodes[nd])) {
         // This is a redundant node that can be discarded
         nredundant++;
+        std::cerr << "[processRedundant] redundant node nd=" << nd
+                  << " node_id=" << nodes[nd]->node_id
+                  << " depth=" << nodes[nd]->depth
+                  << " trav_id=" << nodes[nd]->trav_id
+                  << " traversal_id=" << traversal_id
+                  << " inSubcircuit=" << inSubcircuit(*nodes[nd])
+                  << "\n";
         auto ptr = nodes[nd].get();
         if (taboo != nullptr) {
           taboo->removeRedundantNode(ptr);

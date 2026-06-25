@@ -121,6 +121,19 @@ namespace eSLIM {
   }
   
   std::vector<bool> DelayEngine::reduceDelay(unsigned int max_size, unsigned int initial_delay) {
+    std::cerr << "[reduceDelay] initial_delay=" << initial_delay
+              << " max_size=" << max_size << "\n";
+    std::cerr << "[reduceDelay] delay_selectors keys:";
+    for (const auto& [k, v] : delay_selectors) {
+        std::cerr << " " << k;
+    }
+    std::cerr << "\n";
+    std::cerr << "[reduceDelay] unique_arrival_times:";
+    for (int t : unique_arrival_times) std::cerr << " " << t;
+    std::cerr << "\n";
+    std::cerr << "[reduceDelay] subcir.remaining_times:";
+    for (int t : subcir.remaining_times) std::cerr << " " << t;
+    std::cerr << "\n";
     assert (delay_selectors.find(initial_delay) != delay_selectors.end());
     std::vector<bool> last_model;
     for( auto it = delay_selectors.find(initial_delay); it != delay_selectors.end(); ++it ) {
