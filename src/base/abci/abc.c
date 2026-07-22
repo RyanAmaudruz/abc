@@ -61016,10 +61016,11 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
   eSLIM_ParamStruct params;
   int c;
   Gia_Man_t * pTemp;
+  char * pValidityFile = NULL;
   seteSLIMParams(&params);
   params.aig = 1;
   Extra_UtilGetoptReset();
-  while ( ( c = Extra_UtilGetopt( argc, argv, "CDIPRSTVWXZcfhistx" ) ) != EOF ) {
+  while ( ( c = Extra_UtilGetopt( argc, argv, "CDGIPRSTVWXZcfhiostx" ) ) != EOF ) {
       switch ( c ) {
         case 'C':
           if ( globalUtilOptind >= argc )
@@ -61172,11 +61173,23 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
         case 's' :
           params.fill_subcircuits ^= 1;
           break;
+        case 'o' :
+          params.assume_pi_order ^= 1;
+          break;
         case 't' :
           params.use_taboo_list ^= 1;
           break;
         case 'x' :
           params.aig = 0;
+          break;
+        case 'G':
+          if ( globalUtilOptind >= argc )
+          {
+              Abc_Print( -1, "Command line switch \"-G\" should be followed by a file name.\n" );
+              goto usage;
+          }
+          pValidityFile = argv[globalUtilOptind];
+          globalUtilOptind++;
           break;
         default:
           goto usage;
@@ -61191,17 +61204,80 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
         return 1;
   }
 
+  if ( pValidityFile != NULL ) {
+    extern Gia_Man_t * Gia_AigerRead( char * pFileName, int fGiaSimple, int fSkipStrash, int fCheck );
+    extern Gia_Man_t * Gia_ManCleanup( Gia_Man_t * p );
+    Gia_Man_t * pRaw, * pClean;
+    int i;
+    if ( params.nWindows > 0 ) {
+      Abc_Print( -1, "Global don't-cares (-G) cannot be combined with windowing (-W).\n" );
+      return 1;
+    }
+    pRaw = Gia_AigerRead( pValidityFile, 0, 0, 0 );
+    if ( pRaw == NULL ) {
+      Abc_Print( -1, "Could not read the validity AIG from \"%s\".\n", pValidityFile );
+      return 1;
+    }
+    // The internal circuit representation requires a dangling-free AIG and does
+    // not clean the input itself, so trim dead logic before wrapping it.
+    pClean = Gia_ManCleanup( pRaw );
+    Gia_ManStop( pRaw );
+    if ( Gia_ManPoNum(pClean) != 1 ) {
+      Abc_Print( -1, "The validity AIG must have exactly one output (has %d). "
+                     "Build the conjunction of your constraints beforehand.\n", Gia_ManPoNum(pClean) );
+      Gia_ManStop( pClean );
+      return 1;
+    }
+    if ( Gia_ManPiNum(pClean) != Gia_ManPiNum(pAbc->pGia) ) {
+      Abc_Print( -1, "The validity AIG has %d inputs but the target has %d.\n",
+                 Gia_ManPiNum(pClean), Gia_ManPiNum(pAbc->pGia) );
+      Gia_ManStop( pClean );
+      return 1;
+    }
+    // Enforce semantic PI alignment: prefer matching symbol tables, otherwise
+    // require the user to assert positional correspondence via -o.
+    if ( pClean->vNamesIn != NULL && pAbc->pGia->vNamesIn != NULL ) {
+      for ( i = 0; i < Gia_ManPiNum(pClean); i++ ) {
+        char * pName1 = Gia_ObjCiName( pClean, i );
+        char * pName2 = Gia_ObjCiName( pAbc->pGia, i );
+        if ( pName1 == NULL || pName2 == NULL || strcmp(pName1, pName2) != 0 ) {
+          Abc_Print( -1, "Validity AIG input %d (\"%s\") does not match target input \"%s\". "
+                         "The validity AIG must be generated from the same design without reordering inputs.\n",
+                     i, pName1 ? pName1 : "(null)", pName2 ? pName2 : "(null)" );
+          Gia_ManStop( pClean );
+          return 1;
+        }
+      }
+    } else if ( !params.assume_pi_order ) {
+      Abc_Print( -1, "The validity AIG and/or the target lack input symbol names, so the "
+                     "primary-input correspondence cannot be verified. Re-run with -o to assert "
+                     "that the inputs correspond positionally.\n" );
+      Gia_ManStop( pClean );
+      return 1;
+    } else {
+      Abc_Print( 0, "Warning: assuming the validity AIG inputs correspond positionally to the target inputs (-o).\n" );
+    }
+    params.pValidity = pClean;
+    Abc_Print( 1, "Loaded validity circuit: %d PIs %d PO\n", Gia_ManPiNum(pClean), Gia_ManPoNum(pClean) );
+  }
+
   pTemp = applyeSLIM(pAbc->pGia, &params);
-    
+
+  if ( params.pValidity != NULL ) {
+    Gia_ManStop( params.pValidity );
+    params.pValidity = NULL;
+  }
+
   Abc_FrameUpdateGia( pAbc, pTemp );
   return 0;
 
 
   usage:
-    Abc_Print( -2, "usage: &eslim [-CDIPRSTVWXZ <num>] [-cfhistx]\n" );
+    Abc_Print( -2, "usage: &eslim [-CDIPRSTVWXZ <num>] [-G <file>] [-cfhiostx]\n" );
     Abc_Print( -2, "\t           circuit optimization using exact synthesis and the SAT-based local improvement method (SLIM)\n" );
     Abc_Print( -2, "\t-C <num> : approximate Boolean relations by only considering the frist C levels in the cone \n");
     Abc_Print( -2, "\t-D <num> : the delay mode to use [default = %d]\n",  params.synthesis_approach );
+    Abc_Print( -2, "\t-G <file>: exploit global external don't-cares from a single-output validity AIG over the same inputs\n");
     Abc_Print( -2, "\t-I <num> : the maximal number of iterations (0 = no limit) for the individual eSLIM runs [default = %d]\n",  params.iterations  );
     Abc_Print( -2, "\t-P <num> : the probability of expanding a node [default = %.2f]\n",    params.expansion_probability );
     Abc_Print( -2, "\t-R <num> : the number of runs of eSLIM + Inprocessing [default = %d]\n",    params.nruns );
@@ -61215,6 +61291,7 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
     Abc_Print( -2, "\t-f       : toggle forward expansion of root nodes\n");
     Abc_Print( -2, "\t-h       : print the command usage\n");
     Abc_Print( -2, "\t-i       : toggle inprocessing\n");
+    Abc_Print( -2, "\t-o       : assume validity-AIG inputs correspond positionally to the target inputs (-G without symbol names)\n");
     Abc_Print( -2, "\t-s       : toggle fill subcircuits\n");
     Abc_Print( -2, "\t-t       : toggle use taboo list\n");
     Abc_Print( -2, "\t-x       : allow xor-gates\n");

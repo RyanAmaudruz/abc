@@ -63,6 +63,13 @@ ABC_NAMESPACE_HEADER_START
 
     int gate_size;
     int aig;
+
+    // Global external don't-cares: optional validity predicate (single-output AIG
+    // over the same primary inputs as the target). NULL disables the feature.
+    Gia_Man_t * pValidity;
+    // Set when the user asserts the validity AIG's PIs correspond positionally to
+    // the target's PIs (used when symbol tables are unavailable to diff).
+    int assume_pi_order;
   };
 
   void seteSLIMParams(eSLIM_ParamStruct* params);

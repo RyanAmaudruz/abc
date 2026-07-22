@@ -22,6 +22,7 @@
 #define ABC__OPT__ESLIM__UTILS_hpp
 
 #include <vector>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -60,6 +61,8 @@
 
 ABC_NAMESPACE_CXX_HEADER_START
 namespace eSLIM {
+
+  class eSLIMCirMan;
 
   inline int lsb(ABC_UINT64_T tt) {
     #if __cplusplus >= 202002L
@@ -130,6 +133,11 @@ namespace eSLIM {
     bool generate_relation_with_tfi_limit = false; // If approximate_relation is true, also limit the tfi of the subcircuit
     unsigned int relation_tfi_bound = 0;
     unsigned int relation_tfo_bound = 0;
+
+    // Global external don't-cares: validity predicate encoded into the relation
+    // generation SAT instance. When set, the conflict search only visits globally
+    // reachable primary-input patterns, so unreachable rows stay unconstrained.
+    std::shared_ptr<const eSLIMCirMan> validity_circuit = nullptr;
 
     int verbosity_level = 0;
   };

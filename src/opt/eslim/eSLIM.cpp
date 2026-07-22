@@ -70,6 +70,19 @@ eSLIM::eSLIMConfig getCfg(const eSLIM_ParamStruct* params) {
     config.apply_strash = false;
   }
 
+  if (params->pValidity != NULL) {
+    // Global external don't-cares require the exact relation-generation path: the
+    // approximate path cuts the cone before reaching the primary inputs, so a
+    // PI-level validity constraint would have no effect there.
+    if (config.approximate_relation) {
+      std::cout << "Warning: global don't-cares (-G) force the exact relation "
+                   "generation; ignoring the approximate relation options.\n";
+      config.approximate_relation = false;
+      config.generate_relation_with_tfi_limit = false;
+    }
+    config.validity_circuit = std::make_shared<const eSLIM::eSLIMCirMan>(params->pValidity);
+  }
+
   return config;
 }
 
@@ -107,6 +120,9 @@ void seteSLIMParams(eSLIM_ParamStruct* params) {
   
   params->aig = 1;
   params->gate_size = 2;
+
+  params->pValidity = NULL;
+  params->assume_pi_order = 0;
 }
 
 namespace eSLIM {

@@ -54,6 +54,11 @@ namespace eSLIM {
     const char* node_type = cfg.aig ? "#and" : "#nd"; 
     while (Abc_Clock() <= nTimeToStop && iteration <= iterMax && !stopeSLIM) {
       iteration++;
+      // Nothing to optimise once the circuit collapses to only inputs/outputs;
+      // the subcircuit selection cannot pick a root from a gate-less circuit.
+      if (es_man.getNofGates() == 0) {
+        break;
+      }
       findReplacement();
       if (cfg.apply_strash && iteration % cfg.strash_intervall == 0) {
         Gia_Man_t* pTemp = es_man.eSLIMCirManToGia();

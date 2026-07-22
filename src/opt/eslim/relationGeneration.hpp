@@ -82,6 +82,8 @@ namespace eSLIM {
       std::vector<int> gate2varcone;
       std::vector<int> equality_variables;
       std::vector<int> cone_input_variables;
+      // Maps a node in the validity circuit to its SAT variable in this solver.
+      std::vector<int> validity_gate2var;
       int mode_selection_variable;
       
 
@@ -93,6 +95,10 @@ namespace eSLIM {
       void encodeCircuitAffected();
       void encodeCircuitApproximative();
       void encodeCircuitApproximativeBoundedTFI();
+      // Encodes the global validity predicate into the solver, linking its inputs
+      // to the primary-input variables of the circuit encoding and asserting the
+      // predicate to hold. Must be called after the cone encoding is complete.
+      void encodeValidity();
       std::vector<int> markRestrictedCone();
       void setupConstantGate();
       void setupEqualityConstraints(const std::vector<int>& nodes);

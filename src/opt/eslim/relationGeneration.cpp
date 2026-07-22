@@ -68,6 +68,55 @@ namespace eSLIM {
       // encodeCircuitFull();
       encodeCircuitAffected();
     }
+    // Conjoin the global validity predicate once the cone (including the primary
+    // inputs) has been encoded, so the conflict search only visits reachable rows.
+    encodeValidity();
+  }
+
+  void RelationGenerator::encodeValidity() {
+    if (!cfg.validity_circuit) {
+      return;
+    }
+    const eSLIMCirMan& vc = *cfg.validity_circuit;
+    // Defensive guard even though the command handler already checked: protects
+    // against a programmatically constructed configuration.
+    assert(vc.getNofPis() == cir.getNofPis());
+    assert(vc.getNofPos() == 1);
+
+    validity_gate2var.assign(vc.getNofObjs(), 0);
+
+    // Constant-false node.
+    int const_var = getNewVar();
+    validity_gate2var[0] = const_var;
+    solver.addClause({-const_var});
+
+    // Link validity inputs to the circuit's primary-input variables. Primary
+    // inputs the current window never references get a fresh, otherwise
+    // unconstrained variable - i.e. they are existentially quantified, which is
+    // exactly the projection of the validity set onto the in-cone inputs. Such
+    // variables must NOT be added to cone_input_variables.
+    for (int i = 1; i <= vc.getNofPis(); i++) {
+      if (gate2varref[i] == 0) {
+        gate2varref[i] = getNewVar();
+      }
+      validity_gate2var[i] = gate2varref[i];
+    }
+
+    // Encode the validity gates in topological order.
+    int first_po = vc.getNofObjs() - vc.getNofPos();
+    for (int i = vc.getNofPis() + 1; i < first_po; i++) {
+      const eSLIMCirObj& obj = vc.getObj(i);
+      int var = getNewVar();
+      validity_gate2var[i] = var;
+      encodeGate(obj, var, validity_gate2var);
+    }
+
+    // Assert the (single) validity output. A PO stores its inversion in tt
+    // (1 = negated, 2 = buffer), see eSLIMCirMan::addPo.
+    const eSLIMCirObj& po = vc.getObj(first_po);
+    int driver_var = validity_gate2var[po.fanins[0]->node_id];
+    bool negated = (po.tt == 1);
+    solver.addClause({negated ? -driver_var : driver_var});
   }
 
   void RelationGenerator::encodeGate(const eSLIMCirObj& obj, int var, const std::vector<int>& gate2var) {
