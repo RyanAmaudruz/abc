@@ -43576,6 +43576,39 @@ static Gia_Man_t * Abc_ReadAigerOrVerilogFile( char * pFileName, char * pFileNam
   SeeAlso     []
 
 ***********************************************************************/
+// Build the care-set miter: AND every output of the miter with the single
+// output of the validity predicate (both share primary inputs). On inputs the
+// validity rejects, all miter outputs become 0, so the equivalence check
+// ignores those inputs. (Gia_ManDupAndCare cannot be used here: it reads the
+// care output via its fanin1, which for a combinational output is constant 0.)
+static Gia_Man_t * Abc_GiaMiterConjoinValidity( Gia_Man_t * pMiter, Gia_Man_t * pCare )
+{
+    Gia_Man_t * pNew, * pTemp;
+    Gia_Obj_t * pObj;
+    int i, iCare;
+    assert( Gia_ManRegNum(pMiter) == 0 && Gia_ManRegNum(pCare) == 0 );
+    assert( Gia_ManPiNum(pMiter) == Gia_ManPiNum(pCare) );
+    assert( Gia_ManPoNum(pCare) == 1 );
+    pNew = Gia_ManStart( Gia_ManObjNum(pMiter) + Gia_ManObjNum(pCare) );
+    pNew->pName = Abc_UtilStrsav( pMiter->pName );
+    Gia_ManConst0(pMiter)->Value = 0;
+    Gia_ManConst0(pCare)->Value = 0;
+    Gia_ManHashAlloc( pNew );
+    Gia_ManForEachPi( pMiter, pObj, i )
+        pObj->Value = Gia_ManPi(pCare, i)->Value = Gia_ManAppendCi( pNew );
+    Gia_ManForEachAnd( pMiter, pObj, i )
+        pObj->Value = Gia_ManHashAnd( pNew, Gia_ObjFanin0Copy(pObj), Gia_ObjFanin1Copy(pObj) );
+    Gia_ManForEachAnd( pCare, pObj, i )
+        pObj->Value = Gia_ManHashAnd( pNew, Gia_ObjFanin0Copy(pObj), Gia_ObjFanin1Copy(pObj) );
+    iCare = Gia_ObjFanin0Copy( Gia_ManPo(pCare, 0) );
+    Gia_ManForEachPo( pMiter, pObj, i )
+        Gia_ManAppendCo( pNew, Gia_ManHashAnd( pNew, Gia_ObjFanin0Copy(pObj), iCare ) );
+    Gia_ManHashStop( pNew );
+    pNew = Gia_ManCleanup( pTemp = pNew );
+    Gia_ManStop( pTemp );
+    return pNew;
+}
+
 int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
 {
     extern void Cec_ManPrintCexSummary( Gia_Man_t * p, Abc_Cex_t * pCex, Cec_ParCec_t * pPars );
@@ -43585,9 +43618,14 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
     char ** pArgvNew, * pTopModule = NULL, * pDefines = NULL, * pFileName2 = NULL;
     int c, nArgcNew, fUseSim = 0, fUseNewX = 0, fUseNewY = 0, fMiter = 0, fDualOutput = 0, fDumpMiter = 0, fSavedSpec = 0;
     int Abc_ReadAigerOrVerilogFileStatus = 0;
+    // Global external don't-cares: single-output validity AIG over the same PIs.
+    // When given, equivalence is only required on inputs the validity accepts.
+    Gia_Man_t * pValidity = NULL;
+    char * pValidityFile = NULL;
+    int assume_pi_order = 0;
     Cec_ManCecSetDefaultParams( pPars );
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "CTMDFnmdbasxytvwh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "CTMDFGnmdbasxytvwoh" ) ) != EOF )
     {
         switch ( c )
         {
@@ -43640,6 +43678,18 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
             pFileName2 = argv[globalUtilOptind];
             globalUtilOptind++;
             break;
+        case 'G':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-G\" should be followed by a file name.\n" );
+                goto usage;
+            }
+            pValidityFile = argv[globalUtilOptind];
+            globalUtilOptind++;
+            break;
+        case 'o':
+            assume_pi_order ^= 1;
+            break;
         case 'n':
             pPars->fNaive ^= 1;
             break;
@@ -43682,6 +43732,11 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
     if ( pAbc->pGia && pAbc->pGia->nXors )
     {
         Abc_Print( 0, "It looks like the current AIG is derived by &st -m.  Such AIG contains XOR gates and cannot be verified before &st is applied.\n" );
+        return 1;
+    }
+    if ( pValidityFile != NULL && fMiter )
+    {
+        Abc_Print( -1, "Global don't-cares (-G) cannot be combined with the single-miter mode (-m).\n" );
         return 1;
     }
     if ( pFileName2 )
@@ -43834,6 +43889,78 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
     pPars->pNameSpec = pGias[0] ? (pGias[0]->pSpec ? pGias[0]->pSpec : pGias[0]->pName) : NULL;
     pPars->pNameImpl = pGias[1] ? (pGias[1]->pSpec ? pGias[1]->pSpec : pGias[1]->pName) : NULL;
     pPars->vNamesIn  = pGias[0] ? pGias[0]->vNamesIn : NULL;
+    // Load and validate the global-don't-care validity AIG (same contract as
+    // &eslim -G): single output, same primary inputs as the spec, positionally
+    // aligned (verified via symbol tables when present, otherwise asserted -o).
+    if ( pValidityFile != NULL && pGias[0] != NULL )
+    {
+        Gia_Man_t * pRaw, * pClean;
+        int i;
+        pRaw = Gia_AigerRead( pValidityFile, 0, 0, 0 );
+        if ( pRaw == NULL )
+        {
+            Abc_Print( -1, "Could not read the validity AIG from \"%s\".\n", pValidityFile );
+            if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
+            if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            return 1;
+        }
+        pClean = Gia_ManCleanup( pRaw );
+        Gia_ManStop( pRaw );
+        if ( Gia_ManPoNum(pClean) != 1 )
+        {
+            Abc_Print( -1, "The validity AIG must have exactly one output (has %d). "
+                           "Build the conjunction of your constraints beforehand.\n", Gia_ManPoNum(pClean) );
+            Gia_ManStop( pClean );
+            if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
+            if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            return 1;
+        }
+        if ( Gia_ManPiNum(pClean) != Gia_ManPiNum(pGias[0]) )
+        {
+            Abc_Print( -1, "The validity AIG has %d inputs but the circuits have %d.\n",
+                       Gia_ManPiNum(pClean), Gia_ManPiNum(pGias[0]) );
+            Gia_ManStop( pClean );
+            if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
+            if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            return 1;
+        }
+        if ( pClean->vNamesIn != NULL && pGias[0]->vNamesIn != NULL )
+        {
+            for ( i = 0; i < Gia_ManPiNum(pClean); i++ )
+            {
+                char * pName1 = Gia_ObjCiName( pClean, i );
+                char * pName2 = Gia_ObjCiName( pGias[0], i );
+                if ( pName1 == NULL || pName2 == NULL || strcmp(pName1, pName2) != 0 )
+                {
+                    Abc_Print( -1, "Validity AIG input %d (\"%s\") does not match circuit input \"%s\". "
+                                   "The validity AIG must be generated from the same design without reordering inputs.\n",
+                               i, pName1 ? pName1 : "(null)", pName2 ? pName2 : "(null)" );
+                    Gia_ManStop( pClean );
+                    if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
+                    if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+                    return 1;
+                }
+            }
+        }
+        else if ( !assume_pi_order )
+        {
+            Abc_Print( -1, "The validity AIG and/or the circuits lack input symbol names, so the "
+                           "primary-input correspondence cannot be verified. Re-run with -o to assert "
+                           "that the inputs correspond positionally.\n" );
+            Gia_ManStop( pClean );
+            if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
+            if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            return 1;
+        }
+        else
+        {
+            Abc_Print( 0, "Warning: assuming the validity AIG inputs correspond positionally to the circuit inputs (-o).\n" );
+        }
+        pValidity = pClean;
+        if ( !pPars->fSilent )
+            Abc_Print( 1, "Care-set CEC: only inputs accepted by \"%s\" (%d PIs) are checked.\n",
+                       pValidityFile, Gia_ManPiNum(pValidity) );
+    }
     // compute the miter
     if ( Gia_ManCiNum(pGias[0]) < 6 )
     {
@@ -43853,6 +43980,37 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
 
     if ( pMiter )
     {
+        // Conjoin the validity predicate into every miter output: on inputs the
+        // validity rejects, both halves of each output pair become 0 (trivially
+        // equal), so the checker only reports differences on accepted inputs.
+        if ( pValidity != NULL )
+        {
+            // The checker pads circuits that have fewer than 6 inputs; mirror
+            // that padding on the validity AIG so its inputs stay aligned.
+            Gia_Man_t * pCare = pValidity;
+            int nPad = Gia_ManPiNum(pMiter) - Gia_ManPiNum(pValidity);
+            if ( nPad > 0 )
+            {
+                pCare = Gia_ManDup( pValidity );
+                while ( nPad-- > 0 )
+                    Gia_ManAppendCi( pCare );
+            }
+            if ( Gia_ManPiNum(pMiter) != Gia_ManPiNum(pCare) )
+            {
+                Abc_Print( -1, "Internal PI-count mismatch between miter (%d) and validity (%d); skipping don't-cares.\n",
+                           Gia_ManPiNum(pMiter), Gia_ManPiNum(pCare) );
+            }
+            else
+            {
+                Gia_Man_t * pMasked = Abc_GiaMiterConjoinValidity( pMiter, pCare );
+                Gia_ManStop( pMiter );
+                pMiter = pMasked;
+            }
+            if ( pCare != pValidity )
+                Gia_ManStop( pCare );
+            Gia_ManStop( pValidity );
+            pValidity = NULL;
+        }
         if ( fDumpMiter )
         {
             Abc_Print( 0, "The verification miter is written into file \"%s\".\n", "cec_miter.aig" );
@@ -43932,6 +44090,8 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
         }
         Gia_ManStop( pMiter );
     }
+    if ( pValidity != NULL )
+        Gia_ManStop( pValidity );
     if ( pGias[0] != pAbc->pGia )
         Gia_ManStop( pGias[0] );
     if ( pGias[1] != pAbc->pGiaSaved )
@@ -43939,13 +44099,14 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
     return 0;
 
 usage:
-    Abc_Print( -2, "usage: &cec [-CT num] [-M str] [-D str] [-F str] [-nmdbasxytvwh]\n" );
+    Abc_Print( -2, "usage: &cec [-CT num] [-G file] [-M str] [-D str] [-F str] [-nmdbasxytvwoh]\n" );
     Abc_Print( -2, "\t         new combinational equivalence checker\n" );
     Abc_Print( -2, "\t-C num : the max number of conflicts at a node [default = %d]\n", pPars->nBTLimit );
     Abc_Print( -2, "\t-T num : approximate runtime limit in seconds [default = %d]\n", pPars->TimeLimit );
     Abc_Print( -2, "\t-M str : top module name if Verilog file(s) are used [default = \"not used\"]\n" );
     Abc_Print( -2, "\t-D str : defines to be used by Yosys for Verilog files [default = \"not used\"]\n" );
     Abc_Print( -2, "\t-F str : second Verilog/SystemVerilog file read together with each Verilog input [default = \"not used\"]\n" );
+    Abc_Print( -2, "\t-G file: exploit global external don't-cares from a single-output validity AIG over the same inputs (care-set CEC)\n" );
     Abc_Print( -2, "\t-n     : toggle using naive SAT-based checking [default = %s]\n", pPars->fNaive? "yes":"no");
     Abc_Print( -2, "\t-m     : toggle miter vs. two circuits [default = %s]\n", fMiter? "miter":"two circuits");
     Abc_Print( -2, "\t-d     : toggle using dual output miter [default = %s]\n", fDualOutput? "yes":"no");
@@ -43957,6 +44118,7 @@ usage:
     Abc_Print( -2, "\t-t     : toggle using simulation [default = %s]\n", fUseSim? "yes":"no");
     Abc_Print( -2, "\t-v     : toggle verbose output [default = %s]\n", pPars->fVerbose? "yes":"no");
     Abc_Print( -2, "\t-w     : toggle printing SAT solver statistics [default = %s]\n", pPars->fVeryVerbose? "yes":"no");
+    Abc_Print( -2, "\t-o     : assume validity-AIG inputs correspond positionally to the circuit inputs (-G without symbol names)\n");
     Abc_Print( -2, "\t-h     : print the command usage\n");
     return 1;
 }
