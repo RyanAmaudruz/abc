@@ -61216,7 +61216,7 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
           }
           params.synthesis_approach = atoi(argv[globalUtilOptind]);
           globalUtilOptind++;
-          if ( params.synthesis_approach < 0 ||  params.synthesis_approach > 3)
+          if ( params.synthesis_approach < 0 ||  params.synthesis_approach > 4)
               goto usage;
           break;
         case 'I':
@@ -61438,7 +61438,12 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
     Abc_Print( -2, "usage: &eslim [-CDIPRSTVWXZ <num>] [-G <file>] [-cfhiostx]\n" );
     Abc_Print( -2, "\t           circuit optimization using exact synthesis and the SAT-based local improvement method (SLIM)\n" );
     Abc_Print( -2, "\t-C <num> : approximate Boolean relations by only considering the frist C levels in the cone \n");
-    Abc_Print( -2, "\t-D <num> : the delay mode to use [default = %d]\n",  params.synthesis_approach );
+    Abc_Print( -2, "\t-D <num> : synthesis mode [default = %d]\n",  params.synthesis_approach );
+    Abc_Print( -2, "\t           0 = area\n" );
+    Abc_Print( -2, "\t           1 = area under delay bound\n" );
+    Abc_Print( -2, "\t           2 = area then delay\n" );
+    Abc_Print( -2, "\t           3 = minimum delay\n" );
+    Abc_Print( -2, "\t           4 = minimize delay first, then minimize area while preserving that delay\n" );
     Abc_Print( -2, "\t-G <file>: exploit global external don't-cares from a single-output validity AIG over the same inputs\n");
     Abc_Print( -2, "\t-I <num> : the maximal number of iterations (0 = no limit) for the individual eSLIM runs [default = %d]\n",  params.iterations  );
     Abc_Print( -2, "\t-P <num> : the probability of expanding a node [default = %.2f]\n",    params.expansion_probability );
@@ -61508,7 +61513,7 @@ int Abc_CommandAbc9elSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
           }
           params.synthesis_approach = atoi(argv[globalUtilOptind]);
           globalUtilOptind++;
-          if ( params.synthesis_approach < 0 ||  params.synthesis_approach > 3)
+          if ( params.synthesis_approach < 0 ||  params.synthesis_approach > 4)
               goto usage;
           break;
         case 'I':
@@ -61672,7 +61677,12 @@ int Abc_CommandAbc9elSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
     Abc_Print( -2, "usage: elslim [-CDGIPRSTVWXZ <num>] [-cfhist]\n" );
     Abc_Print( -2, "\t           Lut optimization using exact synthesis and the SAT-based local improvement method (SLIM)\n" );
     Abc_Print( -2, "\t-C <num> : approximate Boolean relations by only considering the frist C levels in the cone \n");
-    Abc_Print( -2, "\t-D <num> : the delay mode to use [default = %d]\n",  params.synthesis_approach );
+    Abc_Print( -2, "\t-D <num> : synthesis mode [default = %d]\n",  params.synthesis_approach );
+    Abc_Print( -2, "\t           0 = area\n" );
+    Abc_Print( -2, "\t           1 = area under delay bound\n" );
+    Abc_Print( -2, "\t           2 = area then delay\n" );
+    Abc_Print( -2, "\t           3 = minimum delay\n" );
+    Abc_Print( -2, "\t           4 = minimize delay first, then minimize area while preserving that delay\n" );
     Abc_Print( -2, "\t-G <num> : the maximal number of fanins gates may use (at most 6) [default = %d]\n",  params.gate_size  );
     Abc_Print( -2, "\t-I <num> : the maximal number of iterations (0 = no limit) for the individual eSLIM runs [default = %d]\n",  params.iterations  );
     Abc_Print( -2, "\t-P <num> : the probability of expanding a node [default = %.2f]\n",    params.expansion_probability );

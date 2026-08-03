@@ -601,6 +601,13 @@ namespace eSLIM {
           } 
         }
         return setSearchDirection<Circuitrepresentation, EmptyInprocessor, DelayMinimizer, SubcircuitNoFBValidator>(cir, params);
+      case 4:
+        if constexpr ( std::is_same_v<Gia_Man_t, Circuitrepresentation> ) {
+          if (params->apply_inprocessing) {
+            return setSearchDirection<Circuitrepresentation, DelayInprocessor<false>, DelayAreaMinimizer, SubcircuitNoFBValidator>(cir, params);
+          }
+        }
+        return setSearchDirection<Circuitrepresentation, EmptyInprocessor, DelayAreaMinimizer, SubcircuitNoFBValidator>(cir, params);
       default:
         assert(false);
         return NULL;
