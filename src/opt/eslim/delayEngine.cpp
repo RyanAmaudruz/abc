@@ -20,6 +20,8 @@
 
 #include "delayEngine.hpp"
 
+#include <fstream>
+#include <sstream>
 
 ABC_NAMESPACE_IMPL_START
 namespace eSLIM {
@@ -121,9 +123,63 @@ namespace eSLIM {
   }
   
   std::vector<bool> DelayEngine::reduceDelay(unsigned int max_size, unsigned int initial_delay) {
-    assert (delay_selectors.find(initial_delay) != delay_selectors.end());
+    // #region agent log
+    {
+      bool found = delay_selectors.find(initial_delay) != delay_selectors.end();
+      int min_key = delay_selectors.empty() ? -1 : delay_selectors.rbegin()->first;
+      int max_key = delay_selectors.empty() ? -1 : delay_selectors.begin()->first;
+      int lb_key = -1;
+      auto lb = delay_selectors.lower_bound(initial_delay);
+      if (lb != delay_selectors.end()) lb_key = lb->first;
+      std::ostringstream keys;
+      int nkeys = 0;
+      for (auto const& [d, _] : delay_selectors) {
+        if (nkeys < 30) { if (nkeys) keys << ","; keys << d; }
+        nkeys++;
+      }
+      std::ostringstream ats;
+      for (size_t i = 0; i < unique_arrival_times.size(); i++) {
+        if (i) ats << ",";
+        ats << unique_arrival_times[i];
+      }
+      std::ostringstream rts;
+      for (size_t i = 0; i < subcir.remaining_times.size(); i++) {
+        if (i) rts << ",";
+        rts << subcir.remaining_times[i];
+      }
+      std::ofstream lf("/home/ramaudruz/Projects/abc/.cursor/debug-ded95c.log", std::ios::app);
+      lf << "{\"sessionId\":\"ded95c\",\"runId\":\"post-fix\",\"hypothesisId\":\"A-E\",\"location\":\"delayEngine.cpp:reduceDelay\",\"message\":\"reduceDelay entry\",\"data\":{"
+         << "\"initial_delay\":" << initial_delay
+         << ",\"found\":" << (found ? "true" : "false")
+         << ",\"min_key\":" << min_key
+         << ",\"max_key\":" << max_key
+         << ",\"lb_key\":" << lb_key
+         << ",\"nkeys\":" << nkeys
+         << ",\"max_size\":" << max_size
+         << ",\"n_arrivals\":" << unique_arrival_times.size()
+         << ",\"n_remainings\":" << subcir.remaining_times.size()
+         << ",\"n_nodes\":" << subcir.nodes.size()
+         << ",\"arrivals\":\"" << ats.str() << "\""
+         << ",\"remainings\":\"" << rts.str() << "\""
+         << ",\"keys_sample\":\"" << keys.str() << "\""
+         << ",\"below_min\":" << ((!delay_selectors.empty() && (int)initial_delay < min_key) ? "true" : "false")
+         << ",\"above_max\":" << ((!delay_selectors.empty() && (int)initial_delay > max_key) ? "true" : "false")
+         << ",\"in_gap\":" << ((!found && !delay_selectors.empty() && (int)initial_delay >= min_key && (int)initial_delay <= max_key) ? "true" : "false")
+         << ",\"used_lower_bound\":" << (!found ? "true" : "false")
+         << "},\"timestamp\":" << (long long)(Abc_Clock() / (CLOCKS_PER_SEC/1000.0)) << "}\n";
+      lf.close();
+    }
+    // #endregion
+    // delay_selectors is ordered descending (std::greater). Keys are
+    // arrival+remaining+d and need not be contiguous, so initial_delay
+    // (e.g. replacement_delay-1) may fall in a gap. lower_bound yields
+    // the largest representable delay <= initial_delay.
     std::vector<bool> last_model;
-    for( auto it = delay_selectors.find(initial_delay); it != delay_selectors.end(); ++it ) {
+    auto it = delay_selectors.lower_bound(initial_delay);
+    if (it == delay_selectors.end()) {
+      return last_model;
+    }
+    for (; it != delay_selectors.end(); ++it ) {
       int d = it->first;
       double timeout = getDynamicTimeout(max_size);
       int status = existsReplacement(max_size, d, timeout);

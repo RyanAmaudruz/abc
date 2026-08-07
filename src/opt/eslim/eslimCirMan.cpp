@@ -564,7 +564,12 @@ namespace eSLIM {
       node_ids[i] = id;
     }
 
-    return pNew;
+    // Structural hashing removes AND nodes that become trivial (e.g. AND(x,!x)->const)
+    // when the manager is later converted to an AIG. Without this, Aig_ManDupDfs /
+    // Aig_ManDfs assert because those nodes are unreachable from the COs.
+    Gia_Man_t * pStrash = Gia_ManRehash( pNew, 0 );
+    Gia_ManStop( pNew );
+    return pStrash;
   }
 
   Abc_Ntk_t* eSLIMCirMan::eSLIMCirManToNtk() {
