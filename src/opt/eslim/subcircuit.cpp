@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <set>
 #include <iostream>
-#include <fstream>
 
 #include "subcircuit.hpp"
 
@@ -95,44 +94,6 @@ namespace eSLIM {
       remaining_times.push_back(es_man.getObj(out).remaining_time); 
       max_crossing_path = std::max(max_crossing_path, es_man.getObj(out).remaining_time + es_man.getObj(out).depth);
     }
-    // #region agent log
-    {
-      std::ofstream lf("/home/ramaudruz/Projects/abc/.cursor/debug-ded95c.log", std::ios::app);
-      lf << "{\"sessionId\":\"ded95c\",\"hypothesisId\":\"B-C\",\"location\":\"subcircuit.cpp:setupTimings\",\"message\":\"setupTimings\",\"data\":{"
-         << "\"max_crossing_path\":" << max_crossing_path
-         << ",\"n_inputs\":" << inputs.size()
-         << ",\"n_outputs\":" << outputs.size()
-         << ",\"n_nodes\":" << nodes.size()
-         << ",\"circuit_depth\":" << es_man.getDepth();
-      lf << ",\"out_depth_rem\":\"";
-      for (size_t i = 0; i < outputs.size(); i++) {
-        if (i) lf << ";";
-        const auto& o = es_man.getObj(outputs[i]);
-        lf << o.depth << "+" << o.remaining_time << "=" << (o.depth + o.remaining_time);
-      }
-      lf << "\",\"in_arrivals\":\"";
-      for (size_t i = 0; i < inputs.size(); i++) {
-        if (i) lf << ",";
-        lf << es_man.getObj(inputs[i]).depth;
-      }
-      // Check if each output depth is representable as arrival+d for d in 0..n_nodes
-      bool all_repr = true;
-      for (int out : outputs) {
-        int od = es_man.getObj(out).depth;
-        bool repr = false;
-        for (int in : inputs) {
-          int d = od - es_man.getObj(in).depth;
-          if (d >= 0 && d <= (int)nodes.size()) { repr = true; break; }
-        }
-        // also allow const path: depth from 0
-        if (od >= 0 && od <= (int)nodes.size()) repr = true;
-        if (!repr) all_repr = false;
-      }
-      lf << "\",\"all_out_depth_repr\":" << (all_repr ? "true" : "false");
-      lf << "},\"timestamp\":0}\n";
-      lf.close();
-    }
-    // #endregion
     return max_crossing_path;
   }
 

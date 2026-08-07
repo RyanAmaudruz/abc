@@ -34,8 +34,6 @@
 #include "synthesisEngines.hpp"
 #include "selectionStrategies.hpp"
 
-#include <fstream>
-
 ABC_NAMESPACE_HEADER_START
   Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose );
   int Abc_NtkMfs( Abc_Ntk_t * pNtk, Mfs_Par_t * pPars );
@@ -420,23 +418,6 @@ namespace eSLIM {
 
   void DeepsynInprocessor::runInprocessing(eSLIMCirMan& es_man) {
     Gia_Man_t* pGia = es_man.eSLIMCirManToGia();
-    // #region agent log
-    {
-      int has_dangling = Gia_ManHasDangling(pGia);
-      int n_and = Gia_ManAndNum(pGia);
-      Gia_Man_t * pClean = Gia_ManCleanup( Gia_ManDup(pGia) );
-      int n_and_clean = Gia_ManAndNum(pClean);
-      std::ofstream lf("/home/ramaudruz/Projects/abc/.cursor/debug-ded95c.log", std::ios::app);
-      lf << "{\"sessionId\":\"ded95c\",\"runId\":\"post-fix\",\"hypothesisId\":\"F2\",\"location\":\"eSLIM.cpp:DeepsynInprocessor\",\"message\":\"before DeepSyn\",\"data\":{"
-         << "\"has_dangling\":" << has_dangling
-         << ",\"n_and\":" << n_and
-         << ",\"n_and_clean\":" << n_and_clean
-         << ",\"cir_gates\":" << es_man.getNofGates()
-         << "},\"timestamp\":0}\n";
-      lf.close();
-      Gia_ManStop(pClean);
-    }
-    // #endregion
     Gia_Man_t* tmp = Gia_ManDeepSyn( pGia, 1, ABC_INFINITY, timeout, 0, config.seed , 0, 0, 0);
     if ( Gia_ManAndNum(pGia) > Gia_ManAndNum(tmp) ) {
       es_man = eSLIMCirMan(tmp);
