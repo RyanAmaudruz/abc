@@ -140,6 +140,10 @@ namespace eSLIM {
     std::shared_ptr<const eSLIMCirMan> validity_circuit = nullptr;
 
     int verbosity_level = 0;
+
+    double deepsyn_before_frac = 0.0;   // 0 = disabled
+    double deepsyn_after_frac = -1.0;   // -1 = legacy default; 0 = disable post
+    int deepsyn_obj = 0;                // resolved Gia_DeepSynObj_t
   };
 
   class eSLIMLog {

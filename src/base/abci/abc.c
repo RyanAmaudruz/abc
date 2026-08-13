@@ -61193,7 +61193,7 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
   seteSLIMParams(&params);
   params.aig = 1;
   Extra_UtilGetoptReset();
-  while ( ( c = Extra_UtilGetopt( argc, argv, "CDGIPRSTVWXZcfhiostx" ) ) != EOF ) {
+  while ( ( c = Extra_UtilGetopt( argc, argv, "BCDGIMPRSTVWXZYcfhiostx" ) ) != EOF ) {
       switch ( c ) {
         case 'C':
           if ( globalUtilOptind >= argc )
@@ -61228,6 +61228,17 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
           params.synthesis_approach = atoi(argv[globalUtilOptind]);
           globalUtilOptind++;
           if ( params.synthesis_approach < 0 ||  params.synthesis_approach > 3)
+              goto usage;
+          break;
+        case 'B':
+          if ( globalUtilOptind >= argc )
+          {
+              Abc_Print( -1, "Command line switch \"-B\" should be followed by a float.\n" );
+              goto usage;
+          }
+          params.deepsyn_before_frac = atof(argv[globalUtilOptind]);
+          globalUtilOptind++;
+          if ( params.deepsyn_before_frac < 0 || params.deepsyn_before_frac >= 1 )
               goto usage;
           break;
         case 'I':
@@ -61331,6 +61342,28 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
           params.fix_seed = 1;
           params.seed = atoi(argv[globalUtilOptind]);
           globalUtilOptind++;
+          break;
+        case 'Y':
+          if ( globalUtilOptind >= argc )
+          {
+              Abc_Print( -1, "Command line switch \"-Y\" should be followed by a float.\n" );
+              goto usage;
+          }
+          params.deepsyn_after_frac = atof(argv[globalUtilOptind]);
+          globalUtilOptind++;
+          if ( params.deepsyn_after_frac < 0 || params.deepsyn_after_frac >= 1 )
+              goto usage;
+          break;
+        case 'M':
+          if ( globalUtilOptind >= argc )
+          {
+              Abc_Print( -1, "Command line switch \"-M\" should be followed by an integer.\n" );
+              goto usage;
+          }
+          params.deepsyn_obj = atoi(argv[globalUtilOptind]);
+          globalUtilOptind++;
+          if ( params.deepsyn_obj < 0 || params.deepsyn_obj > GIA_DEEPSYN_DELAY )
+              goto usage;
           break;
         case 'c' :
           params.criticial_path_selection_bias ^= 1;
@@ -61446,12 +61479,14 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
 
 
   usage:
-    Abc_Print( -2, "usage: &eslim [-CDIPRSTVWXZ <num>] [-G <file>] [-cfhiostx]\n" );
+    Abc_Print( -2, "usage: &eslim [-CDIMPRSTVWXZ <num>] [-BY <float>] [-G <file>] [-cfhiostx]\n" );
     Abc_Print( -2, "\t           circuit optimization using exact synthesis and the SAT-based local improvement method (SLIM)\n" );
+    Abc_Print( -2, "\t-B <float>: pre-DeepSyn fraction of -T (once, before -R) [default = 0]\n");
     Abc_Print( -2, "\t-C <num> : approximate Boolean relations by only considering the frist C levels in the cone \n");
     Abc_Print( -2, "\t-D <num> : the delay mode to use [default = %d]\n",  params.synthesis_approach );
     Abc_Print( -2, "\t-G <file>: exploit global external don't-cares from a single-output validity AIG over the same inputs\n");
     Abc_Print( -2, "\t-I <num> : the maximal number of iterations (0 = no limit) for the individual eSLIM runs [default = %d]\n",  params.iterations  );
+    Abc_Print( -2, "\t-M <num> : DeepSyn objective (0=area, 1=balanced, 2=delay); auto from -D if omitted\n");
     Abc_Print( -2, "\t-P <num> : the probability of expanding a node [default = %.2f]\n",    params.expansion_probability );
     Abc_Print( -2, "\t-R <num> : the number of runs of eSLIM + Inprocessing [default = %d]\n",    params.nruns );
     Abc_Print( -2, "\t-S <num> : the maximal size of considered subcircuits [default = %d]\n",    params.subcircuit_max_size );
@@ -61459,6 +61494,7 @@ int Abc_CommandAbc9eSLIM( Abc_Frame_t * pAbc, int argc, char ** argv ) {
     Abc_Print( -2, "\t-V <num> : the verbosity level [default = %d]\n",       params.verbosity_level);
     Abc_Print( -2, "\t-W <num> <num> : Use m windows of size n [default = %d, %d]\n",       params.nWindows, params.window_size);
     Abc_Print( -2, "\t-X <num> : the maximal number of additional gates that may be used for depth optimization [default = %d]\n", params.additional_gates);
+    Abc_Print( -2, "\t-Y <float>: post-DeepSyn fraction of -T (overrides mode-0 default 0.1) [default = auto]\n");
     Abc_Print( -2, "\t-Z <num> : use a fixed seed\n",       params.seed);
     Abc_Print( -2, "\t-c       : toggle bias for selection of nodes on the crictical path\n");
     Abc_Print( -2, "\t-f       : toggle forward expansion of root nodes\n");

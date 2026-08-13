@@ -70,6 +70,11 @@ ABC_NAMESPACE_HEADER_START
     // Set when the user asserts the validity AIG's PIs correspond positionally to
     // the target's PIs (used when symbol tables are unavailable to diff).
     int assume_pi_order;
+
+    // Pre/post DeepSyn scheduling for &eslim (AIG path only). Fractions of -T.
+    double deepsyn_before_frac;   // 0 = disabled
+    double deepsyn_after_frac;    // -1 = legacy mode default; 0 = disable post
+    int    deepsyn_obj;           // -1 = auto from -D; else Gia_DeepSynObj_t (0..2)
   };
 
   void seteSLIMParams(eSLIM_ParamStruct* params);

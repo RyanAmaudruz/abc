@@ -40,6 +40,12 @@ ABC_NAMESPACE_HEADER_END
 
 ABC_NAMESPACE_IMPL_START
 
+static Gia_DeepSynObj_t eSLIM_ResolveDeepSynObj(const eSLIM_ParamStruct* params) {
+  if (params->deepsyn_obj >= 0)
+    return (Gia_DeepSynObj_t)params->deepsyn_obj;
+  return params->synthesis_approach == 0 ? GIA_DEEPSYN_AREA : GIA_DEEPSYN_BALANCED;
+}
+
 eSLIM::eSLIMConfig getCfg(const eSLIM_ParamStruct* params) {
   eSLIM::eSLIMConfig config;
   config.apply_strash = params->apply_strash;
@@ -64,6 +70,9 @@ eSLIM::eSLIMConfig getCfg(const eSLIM_ParamStruct* params) {
 
   config.aig = params->aig;
   config.gate_size = params->gate_size;
+  config.deepsyn_before_frac = params->deepsyn_before_frac;
+  config.deepsyn_after_frac = params->deepsyn_after_frac;
+  config.deepsyn_obj = (int)eSLIM_ResolveDeepSynObj(params);
 
   if (params->use_taboo_list) {
     config.apply_strash = false;
@@ -122,9 +131,65 @@ void seteSLIMParams(eSLIM_ParamStruct* params) {
 
   params->pValidity = NULL;
   params->assume_pi_order = 0;
+
+  params->deepsyn_before_frac = 0.0;
+  params->deepsyn_after_frac = -1.0;
+  params->deepsyn_obj = -1;
 }
 
 namespace eSLIM {
+
+  static const char* DeepSynObjName(int obj) {
+    switch (obj) {
+      case GIA_DEEPSYN_AREA:     return "area";
+      case GIA_DEEPSYN_BALANCED: return "balanced";
+      case GIA_DEEPSYN_DELAY:    return "delay";
+      default:                   return "unknown";
+    }
+  }
+
+  static void eSLIM_RunDeepSyn(eSLIMCirMan& es_man, int timeout_sec, int seed,
+                               Gia_DeepSynObj_t obj, int verbosity) {
+    Gia_Man_t* pGia = es_man.eSLIMCirManToGia();
+    int fVerbose = verbosity > 1 ? 1 : 0;
+    Gia_Man_t* pRes = (obj == GIA_DEEPSYN_DELAY)
+      ? Gia_ManDeepSyn2(pGia, 1, ABC_INFINITY, timeout_sec, 0, seed, 0, 0, fVerbose)
+      : Gia_ManDeepSyn (pGia, 1, ABC_INFINITY, timeout_sec, 0, seed, 0, 0, fVerbose, obj);
+    if (pRes) {
+      es_man = eSLIMCirMan(pRes);
+      Gia_ManStop(pRes);
+    }
+    Gia_ManStop(pGia);
+  }
+
+  static void eSLIM_RunDeepSynStep(eSLIMCirMan& es_man, int timeout_sec, int seed,
+                                   Gia_DeepSynObj_t obj, int verbosity,
+                                   int& area_change, int& delay_change,
+                                   const char* label) {
+    int size_before = es_man.getNofGates();
+    int delay_before = es_man.getDepth();
+    eSLIM_RunDeepSyn(es_man, timeout_sec, seed, obj, verbosity);
+    int size_after = es_man.getNofGates();
+    int delay_after = es_man.getDepth();
+    area_change += size_after - size_before;
+    delay_change += delay_after - delay_before;
+    if (verbosity > 0)
+      std::cout << label << " -- size: " << size_after << " delay: " << delay_after << "\n";
+  }
+
+  static void printGateChange(const char* who, int delta) {
+    if (delta <= 0)
+      std::cout << "#Gates reduced by " << who << ": " << -delta << "\n";
+    else
+      std::cout << "#Gates introduced by " << who << ": " << delta << "\n";
+  }
+
+  static void printDelayChange(const char* who, int delta) {
+    if (delta <= 0)
+      std::cout << "Delay reduction " << who << ": " << -delta << "\n";
+    else
+      std::cout << "Delay increase " << who << ": " << delta << "\n";
+  }
 
   class DeepsynInprocessor {
     public:
@@ -190,6 +255,15 @@ namespace eSLIM {
 
       int delay_change_eslim = 0;
       int delay_change_inprocessing = 0;
+
+      int area_change_pre_deepsyn = 0;
+      int delay_change_pre_deepsyn = 0;
+      int area_change_post_deepsyn = 0;
+      int delay_change_post_deepsyn = 0;
+
+      int pre_sec = 0;
+      int post_sec = 0;
+      int core_sec = 0;
 
       int nruns = 0;
 
@@ -265,13 +339,39 @@ namespace eSLIM {
 
   template <typename Approach, typename Inprocessor>
   void eSLIMRun<Approach, Inprocessor>::run() {
-    if constexpr ( std::is_same_v<DeepsynInprocessor, Inprocessor> || std::is_same_v<DelayInprocessor<true>, Inprocessor> || std::is_same_v<DelayInprocessor<false>, Inprocessor> ) {
-      int time_out_inprocessing;
-      if constexpr ( std::is_same_v<DeepsynInprocessor, Inprocessor> ) {
-        time_out_inprocessing = config.timeout * 0.1;
-      } else {
-        time_out_inprocessing = config.timeout * 0.02;
-      }
+    unsigned int total = config.timeout;
+    pre_sec = (int)(total * config.deepsyn_before_frac);
+    if (config.deepsyn_before_frac > 0.0 && pre_sec == 0)
+      pre_sec = 1;
+
+    double post_frac = 0.0;
+    if (config.deepsyn_after_frac >= 0.0)
+      post_frac = config.deepsyn_after_frac;
+    else {
+      if constexpr ( std::is_same_v<DeepsynInprocessor, Inprocessor> )
+        post_frac = 0.1;
+    }
+
+    post_sec = (int)(total * post_frac);
+    if (post_frac > 0.0 && post_sec == 0)
+      post_sec = 1;
+
+    core_sec = (int)total - pre_sec - post_sec;
+    if (pre_sec + post_sec > (int)(total * 0.5)) {
+      std::cout << "Warning: pre+post DeepSyn uses more than 50% of -T ("
+                << pre_sec << "s + " << post_sec << "s of " << total << "s).\n";
+    }
+    if (core_sec < 1) {
+      std::cout << "Warning: SAT core timeout would be " << core_sec
+                << "s; clamping to 1s.\n";
+      core_sec = 1;
+    }
+    config.timeout = (unsigned int)core_sec;
+
+    if constexpr ( std::is_same_v<DeepsynInprocessor, Inprocessor> ) {
+      inprocessor.setTimeout(post_sec);
+    } else if constexpr ( std::is_same_v<DelayInprocessor<true>, Inprocessor> || std::is_same_v<DelayInprocessor<false>, Inprocessor> ) {
+      int time_out_inprocessing = (int)(config.timeout * 0.02);
       config.timeout -= time_out_inprocessing;
       inprocessor.setTimeout(time_out_inprocessing);
     }
@@ -279,6 +379,15 @@ namespace eSLIM {
     initial_area = es_man.getNofGates();
     initial_delay = es_man.getDepth();
     printSettings();
+
+    Gia_DeepSynObj_t obj = (Gia_DeepSynObj_t)config.deepsyn_obj;
+    if (pre_sec > 0 && config.aig) {
+      eSLIM_RunDeepSynStep(es_man, pre_sec, config.seed, obj, config.verbosity_level,
+                           area_change_pre_deepsyn, delay_change_pre_deepsyn, "pre-DeepSyn");
+    }
+
+    const bool explicit_post = config.deepsyn_after_frac >= 0.0 && post_sec > 0 && config.aig;
+
     for (int i = 0; i < nruns; i++) {
 
       int size_iteration_start = es_man.getNofGates();
@@ -304,6 +413,10 @@ namespace eSLIM {
           std::cout << "inprocessing -- size: " << size_inprocessing << " delay: " << delay_inprocessing << "\n";
         }
       }
+      if (explicit_post) {
+        eSLIM_RunDeepSynStep(es_man, post_sec, config.seed + i, obj, config.verbosity_level,
+                             area_change_post_deepsyn, delay_change_post_deepsyn, "post-DeepSyn");
+      }
       if (config.fix_seed) {
         config.seed++;
       }
@@ -315,6 +428,11 @@ namespace eSLIM {
   void eSLIMRun<Approach, Inprocessor>::printSettings() {
     std::cout << "Apply eSLIM (timeout: " << config.timeout << ") ";
     std::cout << nruns << " times.\n";
+    if (pre_sec > 0 || config.deepsyn_after_frac >= 0.0) {
+      std::cout << "DeepSyn budget: pre " << pre_sec << "s, core " << core_sec
+                << "s, post " << post_sec << "s, objective "
+                << DeepSynObjName(config.deepsyn_obj) << "\n";
+    }
     if constexpr ( !std::is_same_v<EmptyInprocessor, Inprocessor> ) {
       std::cout << "Apply inprocessing\n";
     }
@@ -330,34 +448,30 @@ namespace eSLIM {
     if (config.verbosity_level > 0) {
       int size = es_man.getNofGates();
       int delay = es_man.getDepth();
-      int total_area_change = area_change_eslim + area_change_inprocessing;
-      int total_delay_change = delay_change_eslim + delay_change_inprocessing;
+      int total_area_change = area_change_eslim + area_change_inprocessing
+                            + area_change_pre_deepsyn + area_change_post_deepsyn;
+      int total_delay_change = delay_change_eslim + delay_change_inprocessing
+                             + delay_change_pre_deepsyn + delay_change_post_deepsyn;
       std::cout << "Final size: " << size << " change: " << total_area_change << "\n";
       std::cout << "Final depth: " << delay << " change: " << total_delay_change << "\n";
 
-
+      const bool log_deepsyn = pre_sec > 0 || (config.deepsyn_after_frac >= 0.0 && post_sec > 0);
+      if (pre_sec > 0) {
+        printGateChange("pre-DeepSyn", area_change_pre_deepsyn);
+        printDelayChange("pre-DeepSyn", delay_change_pre_deepsyn);
+      }
       if constexpr ( !std::is_same_v<EmptyInprocessor, Inprocessor> ) {
-
-        if (area_change_eslim <= 0) {
-          std::cout << "#Gates reduced by eSLIM: " << -area_change_eslim << "\n";
-        } else {
-          std::cout << "#Gates introduced by eSLIM: " << area_change_eslim << "\n";
-        }
-        if (area_change_inprocessing <= 0) {
-          std::cout << "#Gates reduced by inprocessing: " << -area_change_inprocessing << "\n";
-        } else {
-          std::cout << "#Gates introduced by inprocessing: " << area_change_inprocessing << "\n";
-        }
-        if (delay_change_eslim <= 0) {
-          std::cout << "Delay reduction eSLIM: " << -delay_change_eslim << "\n";
-        } else {
-          std::cout << "Delay increase eSLIM: " << delay_change_eslim << "\n";
-        }
-        if (delay_change_inprocessing <= 0) {
-          std::cout << "Delay reduction inprocessing: " << -delay_change_inprocessing << "\n";
-        } else {
-          std::cout << "Delay increase inprocessing: " << delay_change_inprocessing << "\n";
-        }
+        printGateChange("eSLIM", area_change_eslim);
+        printGateChange("inprocessing", area_change_inprocessing);
+        printDelayChange("eSLIM", delay_change_eslim);
+        printDelayChange("inprocessing", delay_change_inprocessing);
+      } else if (log_deepsyn) {
+        printGateChange("eSLIM", area_change_eslim);
+        printDelayChange("eSLIM", delay_change_eslim);
+      }
+      if (config.deepsyn_after_frac >= 0.0 && post_sec > 0) {
+        printGateChange("post-DeepSyn", area_change_post_deepsyn);
+        printDelayChange("post-DeepSyn", delay_change_post_deepsyn);
       }
     }
     if (config.verbosity_level > 1) {
@@ -412,17 +526,12 @@ namespace eSLIM {
   void setUpInprocessor();
 
   DeepsynInprocessor::DeepsynInprocessor(eSLIMConfig& config)
-                    : config(config) {
+                    : config(config), timeout(0) {
   }
 
   void DeepsynInprocessor::runInprocessing(eSLIMCirMan& es_man) {
-    Gia_Man_t* pGia = es_man.eSLIMCirManToGia();
-    Gia_Man_t* tmp = Gia_ManDeepSyn( pGia, 1, ABC_INFINITY, timeout, 0, config.seed, 0, 0, 0, GIA_DEEPSYN_AREA );
-    if ( Gia_ManAndNum(pGia) > Gia_ManAndNum(tmp) ) {
-      es_man = eSLIMCirMan(tmp);
-    }
-    Gia_ManStop( tmp );
-    Gia_ManStop( pGia );
+    eSLIM_RunDeepSyn(es_man, timeout, config.seed, (Gia_DeepSynObj_t)config.deepsyn_obj,
+                     config.verbosity_level);
   }
 
   void MfsInprocessor::runInprocessing(eSLIMCirMan& es_man) {
@@ -573,7 +682,9 @@ namespace eSLIM {
       case 0:
         if (params->apply_inprocessing) {
           if constexpr ( std::is_same_v<Gia_Man_t, Circuitrepresentation> ) {
-            return setSearchDirection<Circuitrepresentation, DeepsynInprocessor, AreaMinimizer, SubcircuitValidator>(cir, params);
+            if (params->deepsyn_after_frac < 0)
+              return setSearchDirection<Circuitrepresentation, DeepsynInprocessor, AreaMinimizer, SubcircuitValidator>(cir, params);
+            return setSearchDirection<Circuitrepresentation, EmptyInprocessor, AreaMinimizer, SubcircuitValidator>(cir, params);
           } else {
             return setSearchDirection<Circuitrepresentation, MfsInprocessor, AreaMinimizer, SubcircuitValidator>(cir, params);
           }
