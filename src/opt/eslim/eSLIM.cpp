@@ -35,7 +35,6 @@
 #include "selectionStrategies.hpp"
 
 ABC_NAMESPACE_HEADER_START
-  Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose );
   int Abc_NtkMfs( Abc_Ntk_t * pNtk, Mfs_Par_t * pPars );
 ABC_NAMESPACE_HEADER_END
 
@@ -418,7 +417,7 @@ namespace eSLIM {
 
   void DeepsynInprocessor::runInprocessing(eSLIMCirMan& es_man) {
     Gia_Man_t* pGia = es_man.eSLIMCirManToGia();
-    Gia_Man_t* tmp = Gia_ManDeepSyn( pGia, 1, ABC_INFINITY, timeout, 0, config.seed , 0, 0, 0);
+    Gia_Man_t* tmp = Gia_ManDeepSyn( pGia, 1, ABC_INFINITY, timeout, 0, config.seed, 0, 0, 0, GIA_DEEPSYN_AREA );
     if ( Gia_ManAndNum(pGia) > Gia_ManAndNum(tmp) ) {
       es_man = eSLIMCirMan(tmp);
     }

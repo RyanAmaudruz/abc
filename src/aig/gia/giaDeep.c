@@ -28,6 +28,31 @@ ABC_NAMESPACE_IMPL_START
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 
+static int Gia_ManDeepSynIsBetter( Gia_Man_t * pBest, Gia_Man_t * pCand,
+    Gia_DeepSynObj_t Obj, int nTargetDepth )
+{
+    int nAndsBest   = Gia_ManAndNum(pBest);
+    int nAndsCand   = Gia_ManAndNum(pCand);
+    int nLevelsBest = Gia_ManLevelNum(pBest);
+    int nLevelsCand = Gia_ManLevelNum(pCand);
+    (void)nTargetDepth;
+    switch ( Obj )
+    {
+    case GIA_DEEPSYN_AREA:
+        return nAndsCand < nAndsBest;
+    case GIA_DEEPSYN_BALANCED:
+        return nAndsCand < nAndsBest && nLevelsCand <= nLevelsBest;
+    case GIA_DEEPSYN_DELAY:
+        return nLevelsCand < nLevelsBest
+            || (nLevelsCand == nLevelsBest && nAndsCand < nAndsBest);
+    case GIA_DEEPSYN_TARGET:
+        assert( 0 );
+        return 0;
+    default:
+        return 0;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////
 ///                     FUNCTION DEFINITIONS                         ///
 ////////////////////////////////////////////////////////////////////////
@@ -43,7 +68,7 @@ ABC_NAMESPACE_IMPL_START
   SeeAlso     []
 
 ***********************************************************************/
-Gia_Man_t * Gia_ManDeepSynOne( int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fVerbose, Vec_Ptr_t * vGias )
+Gia_Man_t * Gia_ManDeepSynOne( int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fVerbose, Vec_Ptr_t * vGias, Gia_DeepSynObj_t Obj )
 {
     abctime nTimeToStop = TimeOut ? Abc_Clock() + TimeOut * CLOCKS_PER_SEC : 0;
     abctime clkStart    = Abc_Clock();
@@ -94,7 +119,7 @@ Gia_Man_t * Gia_ManDeepSynOne( int nNoImpr, int TimeOut, int nAnds, int Seed, in
             Abc_FrameSetBatchMode( 0 );
         }
         pTemp = Abc_FrameReadGia(Abc_FrameGetGlobalFrame());
-        if ( Gia_ManAndNum(pNew) > Gia_ManAndNum(pTemp) )
+        if ( Gia_ManDeepSynIsBetter(pNew, pTemp, Obj, 0) )
         {
             Gia_ManStop( pNew );
             pNew = Gia_ManDup( pTemp );
@@ -141,7 +166,7 @@ Gia_Man_t * Gia_ManDeepSynOne( int nNoImpr, int TimeOut, int nAnds, int Seed, in
             nAndsMin, nAnds, i, (float)1.0*(Abc_Clock() - clkStart)/CLOCKS_PER_SEC );
     return pNew;
 }
-Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose )
+Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose, Gia_DeepSynObj_t Obj )
 {
     Vec_Ptr_t * vGias = fChoices ? Vec_PtrAlloc(100) : NULL;
     Gia_Man_t * pInit = Gia_ManDup(pGia);
@@ -153,8 +178,8 @@ Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeO
     for ( i = 0; i < nIters; i++ )
     {
         Abc_FrameUpdateGia( Abc_FrameGetGlobalFrame(), Gia_ManDup(pInit) );
-        pThis = Gia_ManDeepSynOne( nNoImpr, TimeOut, nAnds, Seed+i, fUseTwo, fVerbose, vGias );
-        if ( Gia_ManAndNum(pBest) > Gia_ManAndNum(pThis) ) 
+        pThis = Gia_ManDeepSynOne( nNoImpr, TimeOut, nAnds, Seed+i, fUseTwo, fVerbose, vGias, Obj );
+        if ( Gia_ManDeepSynIsBetter(pBest, pThis, Obj, 0) )
         {
             Gia_ManStop( pBest );
             pBest = pThis;

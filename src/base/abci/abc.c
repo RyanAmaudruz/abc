@@ -56287,11 +56287,10 @@ usage:
 ***********************************************************************/
 int Abc_CommandAbc9DeepSyn( Abc_Frame_t * pAbc, int argc, char ** argv )
 {
-    extern Gia_Man_t * Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose );
-    extern Gia_Man_t * Gia_ManDeepSyn2( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose );
     Gia_Man_t * pTemp; int c, nIters = 1, nNoImpr = ABC_INFINITY, TimeOut = 0, nAnds = 0, Seed = 0, fUseTwo = 0, fChoices = 0, fOpt = 0, fVerbose = 0;
+    Gia_DeepSynObj_t Obj = GIA_DEEPSYN_AREA;
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "IJTAStcovh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "IJTAStcovhM" ) ) != EOF )
     {
         switch ( c )
         {
@@ -56359,6 +56358,17 @@ int Abc_CommandAbc9DeepSyn( Abc_Frame_t * pAbc, int argc, char ** argv )
         case 'o':
             fOpt ^= 1;
             break;
+        case 'M':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-M\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            Obj = (Gia_DeepSynObj_t)atoi(argv[globalUtilOptind]);
+            globalUtilOptind++;
+            if ( Obj < 0 || Obj > GIA_DEEPSYN_DELAY )
+                goto usage;
+            break;
         case 'v':
             fVerbose ^= 1;
             break;
@@ -56373,21 +56383,22 @@ int Abc_CommandAbc9DeepSyn( Abc_Frame_t * pAbc, int argc, char ** argv )
         Abc_Print( -1, "Abc_CommandAbc9DeepSyn(): There is no AIG.\n" );
         return 0;
     }
-    if ( fOpt ) 
+    if ( fOpt || Obj == GIA_DEEPSYN_DELAY )
         pTemp = Gia_ManDeepSyn2( pAbc->pGia, nIters, nNoImpr, TimeOut, nAnds, Seed, fUseTwo, fChoices, fVerbose );
     else
-        pTemp = Gia_ManDeepSyn( pAbc->pGia, nIters, nNoImpr, TimeOut, nAnds, Seed, fUseTwo, fChoices, fVerbose );
+        pTemp = Gia_ManDeepSyn( pAbc->pGia, nIters, nNoImpr, TimeOut, nAnds, Seed, fUseTwo, fChoices, fVerbose, Obj );
     Abc_FrameUpdateGia( pAbc, pTemp );
     return 0;
 
 usage:
-    Abc_Print( -2, "usage: &deepsyn [-IJTAS <num>] [-tcovh]\n" );
+    Abc_Print( -2, "usage: &deepsyn [-IJTASM <num>] [-tcovh]\n" );
     Abc_Print( -2, "\t           performs synthesis\n" );
     Abc_Print( -2, "\t-I <num> : the number of iterations [default = %d]\n",                   nIters  );
     Abc_Print( -2, "\t-J <num> : the number of steps without improvements [default = %d]\n",   nNoImpr  );
     Abc_Print( -2, "\t-T <num> : the timeout in seconds (0 = no timeout) [default = %d]\n",    TimeOut );
     Abc_Print( -2, "\t-A <num> : the number of nodes to stop (0 = no limit) [default = %d]\n", nAnds   );
     Abc_Print( -2, "\t-S <num> : user-specified random seed (0 <= num <= 100) [default = %d]\n", Seed  );
+    Abc_Print( -2, "\t-M <num> : objective (0=area, 1=balanced, 2=delay) [default = %d]\n",    (int)Obj );
     Abc_Print( -2, "\t-t       : toggle using two-input LUTs [default = %s]\n",                fUseTwo? "yes": "no" );
     Abc_Print( -2, "\t-c       : toggle computing structural choices [default = %s]\n",        fChoices? "yes": "no" );
     Abc_Print( -2, "\t-o       : toggle using optimization [default = %s]\n",                  fOpt? "yes": "no" );
