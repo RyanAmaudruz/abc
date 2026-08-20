@@ -474,6 +474,7 @@ static int Abc_CommandAbc9Resyn3             ( Abc_Frame_t * pAbc, int argc, cha
 static int Abc_CommandAbc9Resyn3rs           ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int Abc_CommandAbc9Compress3rs        ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int Abc_CommandAbc9Dc2                ( Abc_Frame_t * pAbc, int argc, char ** argv );
+static int Abc_CommandAbc9Openc              ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int Abc_CommandAbc9Dsd                ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int Abc_CommandAbc9Bidec              ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int Abc_CommandAbc9Shrink             ( Abc_Frame_t * pAbc, int argc, char ** argv );
@@ -1325,6 +1326,7 @@ void Abc_Init( Abc_Frame_t * pAbc )
     Cmd_CommandAdd( pAbc, "ABC9",         "&resyn3rs",     Abc_CommandAbc9Resyn3rs,     0 );
     Cmd_CommandAdd( pAbc, "ABC9",         "&compress3rs",  Abc_CommandAbc9Compress3rs,  0 );
     Cmd_CommandAdd( pAbc, "ABC9",         "&dc2",          Abc_CommandAbc9Dc2,          0 );
+    Cmd_CommandAdd( pAbc, "ABC9",         "&openc",        Abc_CommandAbc9Openc,        0 );
     Cmd_CommandAdd( pAbc, "ABC9",         "&dsd",          Abc_CommandAbc9Dsd,          0 );
     Cmd_CommandAdd( pAbc, "ABC9",         "&bidec",        Abc_CommandAbc9Bidec,        0 );
     Cmd_CommandAdd( pAbc, "ABC9",         "&shrink",       Abc_CommandAbc9Shrink,       0 );
@@ -40146,6 +40148,313 @@ usage:
     Abc_Print( -2, "\t-l     : toggle level update during rewriting [default = %s]\n", fUpdateLevel? "yes": "no" );
     Abc_Print( -2, "\t-v     : toggle printing verbose information [default = %s]\n", fVerbose? "yes": "no" );
     Abc_Print( -2, "\t-h     : print the command usage\n");
+    return 1;
+}
+
+/**Function*************************************************************
+
+  Synopsis    [Operand-local encoder discovery with a free encoder.]
+
+***********************************************************************/
+int Abc_CommandAbc9Openc( Abc_Frame_t * pAbc, int argc, char ** argv )
+{
+    Gia_Man_t * pTemp;
+    char * pGen = NULL;
+    char * pPart = NULL;
+    char * pEncMode = NULL;
+    int c;
+    int nWord    = 0;
+    int nMaxEnc  = 8;
+    int nBits    = 3;
+    int nTerms   = 2;
+    int nSimWords = 8;
+    int fOneHot  = 0;
+    int fAreaOpt = 1;
+    int fDelayOpt = 0;
+    int fVerbose = 0;
+    int fForceTt = 0;
+    int fClusterOnly = 0;
+    int fShared  = 1;
+    int nIters   = 0;
+    int nRandom  = 32;
+    int nSeed    = 1;
+    int fAffine  = 0;
+    int fStruct  = 0;
+    int fArith   = 0;
+    int fHier    = 0;
+    int nTimeout = 60;
+    int nDmax    = 8;
+    int nLev2    = 2;
+    Extra_UtilGetoptReset();
+    while ( ( c = Extra_UtilGetopt( argc, argv, "WKgBNSPCtodmvheJRQIXATHLDk" ) ) != EOF )
+    {
+        switch ( c )
+        {
+        case 'W':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-W\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nWord = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'K':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-K\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nMaxEnc = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'g':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-g\" should be followed by a name (majxor, popadd, dotprod, mul_tc, or dotprod_tc).\n" );
+                goto usage;
+            }
+            pGen = argv[globalUtilOptind];
+            globalUtilOptind++;
+            break;
+        case 'B':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-B\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nBits = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'N':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-N\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nTerms = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'S':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-S\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nSimWords = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'P':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-P\" should be followed by a name (consec, weight, pair, slice2, cross, hier).\n" );
+                goto usage;
+            }
+            pPart = argv[globalUtilOptind];
+            globalUtilOptind++;
+            break;
+        case 'C':
+            fClusterOnly ^= 1;
+            break;
+        case 't':
+            fForceTt ^= 1;
+            break;
+        case 'o':
+            fOneHot ^= 1;
+            break;
+        case 'd':
+            fDelayOpt ^= 1;
+            break;
+        case 'm':
+            fAreaOpt ^= 1;
+            break;
+        case 'v':
+            fVerbose ^= 1;
+            break;
+        case 'e':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-e\" should be followed by a name (acd or perm).\n" );
+                goto usage;
+            }
+            pEncMode = argv[globalUtilOptind];
+            globalUtilOptind++;
+            break;
+        case 'J':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-J\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nIters = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'R':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-R\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nRandom = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'Q':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-Q\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nSeed = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'I':
+            fShared ^= 1;
+            break;
+        case 'X':
+            fAffine ^= 1;
+            break;
+        case 'A':
+            fStruct ^= 1;
+            break;
+        case 'T':
+            fArith ^= 1;
+            break;
+        case 'H':
+            fHier ^= 1;
+            break;
+        case 'L':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-L\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nTimeout = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'D':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-D\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nDmax = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'k':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-k\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            nLev2 = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
+        case 'h':
+            goto usage;
+        default:
+            goto usage;
+        }
+    }
+    if ( fHier )
+    {
+        if ( nBits == 3 && nTerms == 2 )
+        {
+            nBits  = 4;
+            nTerms = 4;
+        }
+        if ( nWord == 0 )
+            nWord = nBits;
+        pTemp = Gia_ManOpencHierPerform( pAbc->pGia, nWord, nBits, nTerms, nTimeout, nDmax, nLev2, nSeed, fVerbose );
+        if ( pTemp == NULL )
+            return 1;
+        Abc_FrameUpdateGia( pAbc, pTemp );
+        return 0;
+    }
+    if ( pGen )
+    {
+        pTemp = Gia_ManOpencGen( pGen, nBits, nTerms );
+        if ( pTemp == NULL )
+            return 1;
+        Abc_FrameUpdateGia( pAbc, pTemp );
+        if ( nWord == 0 )
+            nWord = nBits;
+        Abc_Print( 1, "Generated mixed AIG \"%s\" with operand width %d and %d term(s).\n", pGen, nWord, nTerms );
+    }
+    if ( pAbc->pGia == NULL )
+    {
+        Abc_Print( -1, "Abc_CommandAbc9Openc(): There is no AIG.\n" );
+        return 1;
+    }
+    if ( nWord < 1 )
+    {
+        if ( pPart && strcmp( pPart, "consec" ) )
+            nWord = nBits > 0 ? nBits : 1;
+        else
+        {
+            Abc_Print( -1, "Abc_CommandAbc9Openc(): please specify operand width with -W num (or use -g majxor|popadd|dotprod|mul_tc|dotprod_tc).\n" );
+            return 1;
+        }
+    }
+    if ( pEncMode && !strcmp(pEncMode, "perm") )
+    {
+        if ( fClusterOnly )
+        {
+            Abc_Print( -1, "&openc -e perm: -C (cluster-only) does not apply to bijective search.\n" );
+            return 1;
+        }
+        Gia_ManOpencPrintBaseline( pAbc->pGia, 1 );
+        pTemp = Gia_ManOpencPermPerform( pAbc->pGia, nWord, fAreaOpt, fDelayOpt, fVerbose, pPart, nBits, nTerms, fShared, nIters, nRandom, nSeed, fAffine, fStruct, fArith );
+        if ( pTemp == NULL )
+            return 1;
+        Abc_FrameUpdateGia( pAbc, pTemp );
+        return 0;
+    }
+    if ( pEncMode && strcmp(pEncMode, "acd") )
+    {
+        Abc_Print( -1, "&openc: unknown encoding mode \"%s\" (use acd or perm).\n", pEncMode );
+        return 1;
+    }
+    if ( !fClusterOnly )
+        Gia_ManOpencPrintBaseline( pAbc->pGia, 1 );
+    pTemp = Gia_ManOpencPerform( pAbc->pGia, nWord, nMaxEnc, fOneHot, fAreaOpt, fDelayOpt, fVerbose, fForceTt, nSimWords, pPart, nBits, nTerms, fClusterOnly );
+    if ( pTemp == NULL )
+        return 1;
+    Abc_FrameUpdateGia( pAbc, pTemp );
+    return 0;
+
+usage:
+    Abc_Print( -2, "usage: &openc [-W num] [-K num] [-g name] [-B num] [-N num] [-S num] [-P name] [-e name] [-J num] [-R num] [-Q num] [-L num] [-D num] [-k num] [-CtodmvhIXATH]\n" );
+    Abc_Print( -2, "\t           discovers operand-local encoders; mixer-only cost (encoder is free)\n" );
+    Abc_Print( -2, "\t-W num   : operand width; consecutive PI groups [default = generator width]\n" );
+    Abc_Print( -2, "\t-K num   : max encoder outputs per operand (ACD mode) [default = %d]\n", nMaxEnc );
+    Abc_Print( -2, "\t-g name  : generate a mixed demo (majxor, popadd, dotprod, mul_tc, or dotprod_tc)\n" );
+    Abc_Print( -2, "\t-B num   : operand bit-width for -g and -P [default = %d]\n", nBits );
+    Abc_Print( -2, "\t-N num   : terms for -g popadd|dotprod|dotprod_tc and -P [default = %d]\n", nTerms );
+    Abc_Print( -2, "\t-S num   : simulation words for ACD column signatures [default = %d]\n", nSimWords );
+    Abc_Print( -2, "\t-P name  : bound-set partition: consec (default), weight, pair, slice2, cross, hier\n" );
+    Abc_Print( -2, "\t-e name  : acd = column-equivalence clustering (default); perm = bijective code search\n" );
+    Abc_Print( -2, "\t           perm default mixer is Shannon of the encoded TT; -A uses structural synthesis\n" );
+    Abc_Print( -2, "\t-J num   : permutation-search iterations (0 = auto) [default = %d]\n", nIters );
+    Abc_Print( -2, "\t-R num   : random permutations to sample [default = %d]\n", nRandom );
+    Abc_Print( -2, "\t-Q num   : RNG seed for perm search [default = %d]\n", nSeed );
+    Abc_Print( -2, "\t-I       : toggle independent (vs shared) permutations [default = %s]\n", fShared? "shared": "independent" );
+    Abc_Print( -2, "\t-X       : toggle affine GL(n,2) enumeration [default = %s]\n", fAffine? "yes": "no" );
+    Abc_Print( -2, "\t-A       : toggle structural perm mixer (inverse-E + F, then &dc2+&syn2) [default = %s]\n", fStruct? "yes": "no" );
+    Abc_Print( -2, "\t-T       : toggle joint arithmetic-template + encoding search (implies -A) [default = %s]\n", fArith? "yes": "no" );
+    Abc_Print( -2, "\t           library: tc_array, unsigned, booth4, booth4_uns, sm_mag[s], sm_booth[s]\n" );
+    Abc_Print( -2, "\t           recovers a reusable E for N-term TC dot products; -I compares independent E\n" );
+    Abc_Print( -2, "\t-H       : hierarchical representation search; G generated from E; mixer-only eSlim\n" );
+    Abc_Print( -2, "\t           4-term 4-bit TC in, 11-bit signed out; gold 350 is a QoR side benchmark\n" );
+    Abc_Print( -2, "\t-L num   : eSlim timeout in seconds (mixer only; 0 = cheap screen only) [default = %d]\n", nTimeout );
+    Abc_Print( -2, "\t-D num   : max digit count D_max (budget cap; 6 is not special) [default = %d]\n", nDmax );
+    Abc_Print( -2, "\t-k num   : Level-2 assignment samples per (family, D) after Level 1 [default = %d]\n", nLev2 );
+    Abc_Print( -2, "\t-C       : toggle cluster-only (ACD class counts; skip mixer) [default = %s]\n", fClusterOnly? "yes": "no" );
+    Abc_Print( -2, "\t-t       : toggle truth-table column enum (nPI<=16) [default = %s]\n", fForceTt? "yes": "no" );
+    Abc_Print( -2, "\t-o       : toggle one-hot class encoding (ACD) [default = %s]\n", fOneHot? "yes": "no" );
+    Abc_Print( -2, "\t-d       : toggle mixer delay optimization (&b) [default = %s]\n", fDelayOpt? "yes": "no" );
+    Abc_Print( -2, "\t-m       : toggle mixer area optimization (&dc2) [default = %s]\n", fAreaOpt? "yes": "no" );
+    Abc_Print( -2, "\t-v       : toggle verbose report [default = %s]\n", fVerbose? "yes": "no" );
+    Abc_Print( -2, "\t-h       : print the command usage\n" );
     return 1;
 }
 

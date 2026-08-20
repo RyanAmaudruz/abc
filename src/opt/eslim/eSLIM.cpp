@@ -86,6 +86,9 @@ eSLIM::eSLIMConfig getCfg(const eSLIM_ParamStruct* params) {
   return config;
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void seteSLIMParams(eSLIM_ParamStruct* params) {
 
   params->fill_subcircuits = 0;
@@ -124,6 +127,9 @@ void seteSLIMParams(eSLIM_ParamStruct* params) {
   params->pValidity = NULL;
   params->assume_pi_order = 0;
 }
+#ifdef __cplusplus
+}
+#endif
 
 namespace eSLIM {
 
@@ -618,6 +624,9 @@ Circuitrepresentation* runeSLIM(Circuitrepresentation * cir, const eSLIM_ParamSt
 }
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 Gia_Man_t* applyeSLIM(Gia_Man_t * pGia, const eSLIM_ParamStruct* params) {
   if (Gia_ManHasDangling(pGia)) {
     std::cout << "Warning: Circuit must not contain dangling nodes.\n";
@@ -629,6 +638,9 @@ Gia_Man_t* applyeSLIM(Gia_Man_t * pGia, const eSLIM_ParamStruct* params) {
 Abc_Ntk_t* applyelSLIM(Abc_Ntk_t * ntk, const eSLIM_ParamStruct* params) {
   return runeSLIM(ntk, params);
 }
+#ifdef __cplusplus
+}
+#endif
 
 
 

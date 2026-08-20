@@ -1876,6 +1876,13 @@ extern Gia_Man_t*           Bnd_ManCutBoundary( Gia_Man_t *p, Vec_Int_t* vEI, Ve
 
 extern int                  Gia_ObjCheckMffc( Gia_Man_t * p, Gia_Obj_t * pRoot, int Limit, Vec_Int_t * vNodes, Vec_Int_t * vLeaves, Vec_Int_t * vInners );
 
+/*=== giaOpenc.c ===========================================================*/
+extern Gia_Man_t *          Gia_ManOpencGen( char * pType, int nBits, int nTerms );
+extern Gia_Man_t *          Gia_ManOpencPerform( Gia_Man_t * p, int nWord, int nMaxEnc, int fOneHot, int fAreaOpt, int fDelayOpt, int fVerbose, int fForceTt, int nSimWords, char * pPart, int nMacBits, int nMacTerms, int fClusterOnly );
+extern Gia_Man_t *          Gia_ManOpencPermPerform( Gia_Man_t * p, int nWord, int fAreaOpt, int fDelayOpt, int fVerbose, char * pPart, int nMacBits, int nMacTerms, int fShared, int nIters, int nRandom, int nSeed, int fAffine, int fStruct, int fArith );
+extern Gia_Man_t *          Gia_ManOpencHierPerform( Gia_Man_t * p, int nWord, int nBits, int nTerms, int nTimeout, int nDmax, int nLev2, int nSeed, int fVerbose );
+extern void                 Gia_ManOpencPrintBaseline( Gia_Man_t * p, int fAreaOpt );
+
 ABC_NAMESPACE_HEADER_END
 
 
