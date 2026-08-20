@@ -218,6 +218,93 @@ static Gia_Man_t * Hier_Stitch( Gia_Man_t * pEnc, Gia_Man_t * pMix )
     return pNew;
 }
 
+/* Encoder cone in a stitched AIG: backward TFI from each boundary-buffer fanin. */
+static void Hier_MarkEncConeBwd( Gia_Man_t * p, Gia_Obj_t * pObj )
+{
+    if ( Gia_ObjIsTravIdCurrent(p, pObj) )
+        return;
+    Gia_ObjSetTravIdCurrent( p, pObj );
+    if ( Gia_ObjIsCi(pObj) )
+        return;
+    if ( Gia_ObjIsBuf(pObj) )
+    {
+        Hier_MarkEncConeBwd( p, Gia_ObjFanin0(pObj) );
+        return;
+    }
+    if ( Gia_ObjIsAnd(pObj) )
+    {
+        Hier_MarkEncConeBwd( p, Gia_ObjFanin0(pObj) );
+        Hier_MarkEncConeBwd( p, Gia_ObjFanin1(pObj) );
+        if ( Gia_ObjIsMux(p, pObj) )
+            Hier_MarkEncConeBwd( p, Gia_ObjFanin2(p, pObj) );
+    }
+}
+
+/* Mixer cone: backward TFI from POs, stopping at stitching buffers. */
+static void Hier_MarkMixConeBwd( Gia_Man_t * p, Gia_Obj_t * pObj )
+{
+    if ( Gia_ObjIsTravIdCurrent(p, pObj) )
+        return;
+    Gia_ObjSetTravIdCurrent( p, pObj );
+    if ( Gia_ObjIsCi(pObj) || Gia_ObjIsBuf(pObj) )
+        return;
+    if ( Gia_ObjIsCo(pObj) )
+        Hier_MarkMixConeBwd( p, Gia_ObjFanin0(pObj) );
+    else if ( Gia_ObjIsAnd(pObj) )
+    {
+        Hier_MarkMixConeBwd( p, Gia_ObjFanin0(pObj) );
+        Hier_MarkMixConeBwd( p, Gia_ObjFanin1(pObj) );
+        if ( Gia_ObjIsMux(p, pObj) )
+            Hier_MarkMixConeBwd( p, Gia_ObjFanin2(p, pObj) );
+    }
+}
+
+/* When only the stitched AIG is available, use encoder-output buffers as the boundary.
+   Stitching does not share AND nodes across E/G, so mixer ANDs are the non-encoder ANDs. */
+static void Hier_CountStitchedRegions( Gia_Man_t * pAll, int * pEncAnd, int * pMixAnd )
+{
+    Gia_Obj_t * pObj;
+    int i;
+    Gia_ManIncrementTravId( pAll );
+    Gia_ManForEachBuf( pAll, pObj, i )
+        Hier_MarkEncConeBwd( pAll, Gia_ObjFanin0(pObj) );
+    *pEncAnd = 0;
+    Gia_ManForEachAnd( pAll, pObj, i )
+        if ( !Gia_ObjIsBuf(pObj) && Gia_ObjIsTravIdCurrent(pAll, pObj) )
+            (*pEncAnd)++;
+    Gia_ManIncrementTravId( pAll );
+    Gia_ManForEachCo( pAll, pObj, i )
+        Hier_MarkMixConeBwd( pAll, pObj );
+    *pMixAnd = 0;
+    Gia_ManForEachAnd( pAll, pObj, i )
+        if ( !Gia_ObjIsBuf(pObj) && Gia_ObjIsTravIdCurrent(pAll, pObj) )
+            (*pMixAnd)++;
+}
+
+static void Hier_PrintGateReport( const char * pName, int nEncWidth, int nEncAnd, int nEncLev,
+    int nMixWidth, int nMixAnd, int nMixLev, int nMixEslimAnd, int nMixEslimLev,
+    int nAllAnd, int fSumOk, int fBoundaryOk )
+{
+    Abc_Print( 1, "  gate counts [%s]:\n", pName ? pName : "" );
+    Abc_Print( 1, "    encoder:\n" );
+    Abc_Print( 1, "        physical width: %d\n", nEncWidth );
+    Abc_Print( 1, "        ANDs: %d\n", nEncAnd );
+    Abc_Print( 1, "        depth: %d\n", nEncLev );
+    Abc_Print( 1, "    mixer:\n" );
+    Abc_Print( 1, "        input width: %d\n", nMixWidth );
+    Abc_Print( 1, "        ANDs: %d\n", nMixAnd );
+    Abc_Print( 1, "        depth: %d\n", nMixLev );
+    if ( nMixEslimAnd != nMixAnd || nMixEslimLev != nMixLev )
+        Abc_Print( 1, "        eSlim ANDs: %d  (depth %d)\n", nMixEslimAnd, nMixEslimLev );
+    else
+        Abc_Print( 1, "        eSlim ANDs: %d\n", nMixEslimAnd );
+    Abc_Print( 1, "    combined:\n" );
+    Abc_Print( 1, "        ANDs: %d  (enc %d + mix %d%s%s)\n",
+        nAllAnd, nEncAnd, nMixEslimAnd,
+        fSumOk ? "; stitched sum OK" : "; stitched sum MISMATCH",
+        fBoundaryOk ? ", boundary OK" : ", boundary check failed" );
+}
+
 static int Hier_VerifyCec( Gia_Man_t * pOrig, Gia_Man_t * pNew )
 {
     Cec_ParCec_t Pars;
@@ -1057,6 +1144,51 @@ static int Hier_NoCheatFixture( Gia_Man_t * pSpec, int fVerbose )
     return 1;
 }
 
+static int Hier_GateCountFixture( void )
+{
+    signed char E[HIER_NVAL][HIER_MAX_D];
+    Gia_Man_t * pEnc, * pMix, * pMixC, * pAll;
+    int nEncAnd, nMixAnd, nAllAnd, nSumAnd, nEncB, nMixB;
+    int fSumOk, fBoundaryOk, fOk;
+    Abc_Print( 1, "\n&openc -H gate-count fixture: known encoder (NAF D=4) + digit mixer, stitched.\n" );
+    Hier_FillTable( HIER_FAM_A, 4, "naf", E );
+    pEnc = Hier_BuildEncoder( HIER_FAM_A, 4, E );
+    {
+        int nPiMix = HIER_NOPS * 8, * pTag = ABC_CALLOC( int, nPiMix );
+        Hier_FillTags( HIER_FAM_A, 4, E, pTag );
+        pMix = Hier_BuildDigitMixer( HIER_FAM_A, 4, pTag );
+        ABC_FREE( pTag );
+    }
+    {
+        Gia_Man_t * pEncC = Hier_Cheap( pEnc );
+        Gia_ManStop( pEnc );
+        pEnc = pEncC;
+    }
+    pMixC = Hier_Cheap( pMix );
+    nEncAnd = Gia_ManAndNotBufNum( pEnc );
+    nMixAnd = Gia_ManAndNotBufNum( pMixC );
+    pAll    = Hier_Stitch( pEnc, pMixC );
+    nAllAnd = Gia_ManAndNotBufNum( pAll );
+    nSumAnd = nEncAnd + nMixAnd;
+    fSumOk  = (nAllAnd == nSumAnd);
+    Hier_CountStitchedRegions( pAll, &nEncB, &nMixB );
+    fBoundaryOk = (nEncB == nEncAnd && nMixB == nMixAnd);
+    fOk = fSumOk && fBoundaryOk;
+    Abc_Print( 1, "  direct:  encoder ANDs = %d   mixer ANDs = %d   sum = %d\n", nEncAnd, nMixAnd, nSumAnd );
+    Abc_Print( 1, "  stitched total ANDs = %d   boundary enc/mix = %d/%d\n", nAllAnd, nEncB, nMixB );
+    Abc_Print( 1, "  check:   total == enc+mix : %s   boundary match : %s\n",
+        fSumOk ? "OK" : "FAIL", fBoundaryOk ? "OK" : "FAIL" );
+    Gia_ManStop( pEnc );
+    Gia_ManStop( pMix );
+    Gia_ManStop( pMixC );
+    Gia_ManStop( pAll );
+    if ( fOk )
+        Abc_Print( 1, "GATE-COUNT OK: encoder and mixer ANDs sum to stitched total; boundary split matches.\n" );
+    else
+        Abc_Print( 1, "GATE-COUNT FAILED.\n" );
+    return fOk;
+}
+
 ////////////////////////////////////////////////////////////////////////
 ///                         CENSUS                                   ///
 ////////////////////////////////////////////////////////////////////////
@@ -1159,6 +1291,9 @@ struct Hier_Cand_t_
     int         nMixCheapLev;
     int         nMixEslim;
     int         nMixEslimLev;
+    int         nAllAnd;
+    int         nAllLev;
+    int         fGateSumOk;
     int         fIface;
     int         fCec;
     int         fSkipEslim;
@@ -1240,9 +1375,10 @@ static Gia_Man_t * Hier_EvalOne( Hier_Cand_t * pC, Gia_Man_t * pSpec, int nTimeo
     }
     {
         Gia_Man_t * pEncC = Hier_Cheap( pEnc );
-        pC->nEncAnd = Gia_ManAndNotBufNum( pEncC );
-        pC->nEncLev = Gia_ManLevelNum( pEncC );
-        Gia_ManStop( pEncC );
+        Gia_ManStop( pEnc );
+        pEnc = pEncC;
+        pC->nEncAnd = Gia_ManAndNotBufNum( pEnc );
+        pC->nEncLev = Gia_ManLevelNum( pEnc );
     }
     pMixC = Hier_Cheap( pMix );
     pC->nMixCheap    = Gia_ManAndNotBufNum( pMixC );
@@ -1278,6 +1414,17 @@ static Gia_Man_t * Hier_EvalOne( Hier_Cand_t * pC, Gia_Man_t * pSpec, int nTimeo
         pC->nMixEslimLev = Gia_ManLevelNum( pMixE );
     }
     pAll = Hier_Stitch( pEnc, pMixE );
+    pC->nAllAnd   = Gia_ManAndNotBufNum( pAll );
+    pC->nAllLev   = Gia_ManLevelNum( pAll );
+    pC->fGateSumOk = (pC->nAllAnd == pC->nEncAnd + pC->nMixEslim);
+    {
+        int nEncB = 0, nMixB = 0, fBoundaryOk;
+        Hier_CountStitchedRegions( pAll, &nEncB, &nMixB );
+        fBoundaryOk = (nEncB == pC->nEncAnd && nMixB == pC->nMixEslim);
+        Hier_PrintGateReport( pC->name, Gia_ManPoNum(pEnc), pC->nEncAnd, pC->nEncLev,
+            Gia_ManPiNum(pMixE), pC->nMixCheap, pC->nMixCheapLev, pC->nMixEslim, pC->nMixEslimLev,
+            pC->nAllAnd, pC->fGateSumOk, fBoundaryOk );
+    }
     if ( pC->level == 2 && pC->nMixCheap > 2000 && Hier_TableValid(pC->fam, pC->D, pC->E) )
     {
         pC->fCec = 1;
@@ -1369,7 +1516,7 @@ Gia_Man_t * Gia_ManOpencHierPerform( Gia_Man_t * pUnused, int nWord, int nBits, 
     Hier_Cand_t pCands[HIER_MAX_CAND], bestL1, bestL2;
     int nC = 0, i, D, nCheapTc, nLevTc, nCheapSm, nLevSm, nCheapRef, nDepthRef;
     int nGoldAnd = 350, nGate0 = -1, nBestL1 = -1, nBestL2 = -1, nBestMix = -1;
-    int fGate0Ok = 0, fNoCheat = 0, fHaveL1 = 0, fHaveL2 = 0;
+    int fGate0Ok = 0, fNoCheat = 0, fGateCount = 0, fHaveL1 = 0, fHaveL2 = 0;
     unsigned seed = (unsigned)(nSeed > 0 ? nSeed : 1);
     int counts[HIER_NVAL];
     (void)pUnused;
@@ -1477,6 +1624,7 @@ Gia_Man_t * Gia_ManOpencHierPerform( Gia_Man_t * pUnused, int nWord, int nBits, 
         nCheapTc, nLevTc, nCheapSm, nLevSm, nCheapRef, nDepthRef );
 
     fNoCheat = Hier_NoCheatFixture( pSpec, fVerbose );
+    fGateCount = Hier_GateCountFixture();
 
     /* ---- Census ---- */
     Abc_Print( 1, "\n---- Census (before any search eSlim); 6 is not special ----\n" );
@@ -1629,6 +1777,7 @@ Gia_Man_t * Gia_ManOpencHierPerform( Gia_Man_t * pUnused, int nWord, int nBits, 
     Abc_Print( 1, "Digit-to-wire encodings: A/C {%s}; B {%s}; S {%s}\n",
         Hier_EncName(HIER_FAM_A), Hier_EncName(HIER_FAM_B), Hier_EncName(HIER_FAM_S) );
     Abc_Print( 1, "No-cheat fixture: %s\n", fNoCheat ? "passed" : "FAILED" );
+    Abc_Print( 1, "Gate-count fixture: %s\n", fGateCount ? "passed" : "FAILED" );
     Abc_Print( 1, "================================================================\n" );
 
     if ( pGold ) Gia_ManStop( pGold );

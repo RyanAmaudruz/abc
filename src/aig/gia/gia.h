@@ -1882,6 +1882,9 @@ extern Gia_Man_t *          Gia_ManOpencPerform( Gia_Man_t * p, int nWord, int n
 extern Gia_Man_t *          Gia_ManOpencPermPerform( Gia_Man_t * p, int nWord, int fAreaOpt, int fDelayOpt, int fVerbose, char * pPart, int nMacBits, int nMacTerms, int fShared, int nIters, int nRandom, int nSeed, int fAffine, int fStruct, int fArith );
 extern Gia_Man_t *          Gia_ManOpencHierPerform( Gia_Man_t * p, int nWord, int nBits, int nTerms, int nTimeout, int nDmax, int nLev2, int nSeed, int fVerbose );
 extern void                 Gia_ManOpencPrintBaseline( Gia_Man_t * p, int fAreaOpt );
+extern int                  Gia_ManOpencCountPiSupport( Gia_Man_t * p, int nOps, int * pLo, int * pHi, int * pEncAnd, int * pEncAndPerOp, int * pMixAnd, int * pOtherAnd );
+extern int                  Gia_ManOpencCountPiSupport2( Gia_Man_t * p, int iSplit, int * pEncAnd, int * pEncA, int * pEncB, int * pMixAnd, int * pOtherAnd );
+extern void                 Gia_ManOpencPrintPiSupportReport( Gia_Man_t * p, int iSplit );
 
 ABC_NAMESPACE_HEADER_END
 

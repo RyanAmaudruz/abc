@@ -40185,8 +40185,9 @@ int Abc_CommandAbc9Openc( Abc_Frame_t * pAbc, int argc, char ** argv )
     int nTimeout = 60;
     int nDmax    = 8;
     int nLev2    = 2;
+    int iSplit   = 0;
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "WKgBNSPCtodmvheJRQIXATHLDk" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "WKgBNSPCtodmvheJRQIXATHLDkF" ) ) != EOF )
     {
         switch ( c )
         {
@@ -40349,11 +40350,30 @@ int Abc_CommandAbc9Openc( Abc_Frame_t * pAbc, int argc, char ** argv )
             nLev2 = atoi( argv[globalUtilOptind] );
             globalUtilOptind++;
             break;
+        case 'F':
+            if ( globalUtilOptind >= argc )
+            {
+                Abc_Print( -1, "Command line switch \"-F\" should be followed by an integer.\n" );
+                goto usage;
+            }
+            iSplit = atoi( argv[globalUtilOptind] );
+            globalUtilOptind++;
+            break;
         case 'h':
             goto usage;
         default:
             goto usage;
         }
+    }
+    if ( iSplit > 0 )
+    {
+        if ( pAbc->pGia == NULL )
+        {
+            Abc_Print( -1, "Abc_CommandAbc9Openc(): There is no AIG.\n" );
+            return 1;
+        }
+        Gia_ManOpencPrintPiSupportReport( pAbc->pGia, iSplit );
+        return 0;
     }
     if ( fHier )
     {
@@ -40423,7 +40443,7 @@ int Abc_CommandAbc9Openc( Abc_Frame_t * pAbc, int argc, char ** argv )
     return 0;
 
 usage:
-    Abc_Print( -2, "usage: &openc [-W num] [-K num] [-g name] [-B num] [-N num] [-S num] [-P name] [-e name] [-J num] [-R num] [-Q num] [-L num] [-D num] [-k num] [-CtodmvhIXATH]\n" );
+    Abc_Print( -2, "usage: &openc [-W num] [-K num] [-g name] [-B num] [-N num] [-S num] [-P name] [-e name] [-J num] [-R num] [-Q num] [-L num] [-D num] [-k num] [-F num] [-CtodmvhIXATH]\n" );
     Abc_Print( -2, "\t           discovers operand-local encoders; mixer-only cost (encoder is free)\n" );
     Abc_Print( -2, "\t-W num   : operand width; consecutive PI groups [default = generator width]\n" );
     Abc_Print( -2, "\t-K num   : max encoder outputs per operand (ACD mode) [default = %d]\n", nMaxEnc );
@@ -40448,6 +40468,8 @@ usage:
     Abc_Print( -2, "\t-L num   : eSlim timeout in seconds (mixer only; 0 = cheap screen only) [default = %d]\n", nTimeout );
     Abc_Print( -2, "\t-D num   : max digit count D_max (budget cap; 6 is not special) [default = %d]\n", nDmax );
     Abc_Print( -2, "\t-k num   : Level-2 assignment samples per (family, D) after Level 1 [default = %d]\n", nLev2 );
+    Abc_Print( -2, "\t-F num   : PI-support encoder/mixer report on the current AIG (split at PI num)\n" );
+    Abc_Print( -2, "\t           encoder = single-operand PI support; mixer = multi-operand support\n" );
     Abc_Print( -2, "\t-C       : toggle cluster-only (ACD class counts; skip mixer) [default = %s]\n", fClusterOnly? "yes": "no" );
     Abc_Print( -2, "\t-t       : toggle truth-table column enum (nPI<=16) [default = %s]\n", fForceTt? "yes": "no" );
     Abc_Print( -2, "\t-o       : toggle one-hot class encoding (ACD) [default = %s]\n", fOneHot? "yes": "no" );

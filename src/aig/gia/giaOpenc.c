@@ -2845,11 +2845,16 @@ static Gia_Man_t * Openc_PermBuildSmFriendly( Openc_Man_t * p, Gia_Man_t * pOrig
     return Openc_PermBuildArith( p, pOrig, p->pOps[0].nBound - 1, nOpt, fDelayOpt, pCost );
 }
 
+static void Openc_PrintGateReport( const char * pTag, int nEncWidth, int nEncAnd, int nEncLev,
+    int nMixWidth, int nMixAnd, int nMixLev, int nMixRawAnd, int nAllAnd, int fSumOk );
+
 static void Openc_PermPrintCost( char * pName, Openc_PermCost_t * pCost, int * pPerm, int nM, int nBound, int nOps, int fShared )
 {
-    Abc_Print( 1, "  %-18s mixer and = %d (raw %d)  lev = %d   encoder and = %d  lev = %d   [enc FREE / mix COST]  verify = %s\n",
-        pName, pCost->nMixAnds, pCost->nMixAndsRaw, pCost->nMixLev,
-        pCost->nEncAnds, pCost->nEncLev, pCost->fOk ? "equivalent" : "FAILED" );
+    int fSumOk = (pCost->nAllAnds == pCost->nEncAnds + pCost->nMixAnds);
+    Openc_PrintGateReport( pName, nBound * nOps, pCost->nEncAnds, pCost->nEncLev,
+        nBound * nOps, pCost->nMixAnds, pCost->nMixLev, pCost->nMixAndsRaw,
+        pCost->nAllAnds, fSumOk );
+    Abc_Print( 1, "    verify: %s  [enc FREE / mix COST]\n", pCost->fOk ? "equivalent" : "FAILED" );
     if ( pPerm )
         Openc_PrintPermLine( "encoding", pPerm, nM, nBound );
     (void)nOps;
@@ -3873,9 +3878,28 @@ static void Openc_PrintClassSummary( Openc_Man_t * p )
         Abc_Print( 1, "  (all groups identity; pass -v to list them)\n" );
 }
 
+static void Openc_PrintGateReport( const char * pTag, int nEncWidth, int nEncAnd, int nEncLev,
+    int nMixWidth, int nMixAnd, int nMixLev, int nMixRawAnd, int nAllAnd, int fSumOk )
+{
+    Abc_Print( 1, "  gate counts [%s]:\n", pTag ? pTag : "candidate" );
+    Abc_Print( 1, "    encoder:\n" );
+    Abc_Print( 1, "        physical width: %d\n", nEncWidth );
+    Abc_Print( 1, "        ANDs: %d\n", nEncAnd );
+    Abc_Print( 1, "        depth: %d\n", nEncLev );
+    Abc_Print( 1, "    mixer:\n" );
+    Abc_Print( 1, "        input width: %d\n", nMixWidth );
+    Abc_Print( 1, "        ANDs: %d\n", nMixAnd );
+    Abc_Print( 1, "        depth: %d\n", nMixLev );
+    if ( nMixRawAnd != nMixAnd )
+        Abc_Print( 1, "        raw ANDs: %d\n", nMixRawAnd );
+    Abc_Print( 1, "    combined:\n" );
+    Abc_Print( 1, "        ANDs: %d  (enc %d + mix %d%s)\n",
+        nAllAnd, nEncAnd, nMixAnd, fSumOk ? "; stitched sum OK" : "; stitched sum MISMATCH" );
+}
+
 static void Openc_PrintReport( Gia_Man_t * pOrig, Gia_Man_t * pEnc, Gia_Man_t * pMix, Gia_Man_t * pAll, Openc_Man_t * p, int fOk, abctime clk )
 {
-    int nEncAnds, nMixAnds, nAllAnds, nEncLev, nMixLev, nAllLev, nOrigAnds, nOrigLev;
+    int nEncAnds, nMixAnds, nAllAnds, nEncLev, nMixLev, nAllLev, nOrigAnds, nOrigLev, fSumOk;
     nOrigAnds = Gia_ManAndNotBufNum( pOrig );
     nOrigLev  = Gia_ManLevelNum( pOrig );
     Abc_Print( 1, "\n" );
@@ -3901,15 +3925,11 @@ static void Openc_PrintReport( Gia_Man_t * pOrig, Gia_Man_t * pEnc, Gia_Man_t * 
     nMixLev   = Gia_ManLevelNum( pMix );
     nAllAnds  = Gia_ManAndNotBufNum( pAll );
     nAllLev   = Gia_ManLevelNum( pAll );
-    Abc_Print( 1, "encoder:   outputs = %d  and = %d  lev = %d   [FREE]\n",
-        Gia_ManPoNum(pEnc), nEncAnds, nEncLev );
-    Abc_Print( 1, "mixer:     %s\n", p->pMixMethod ? p->pMixMethod : "direct G" );
-    Abc_Print( 1, "mixer:     and = %d  lev = %d  i/o = %d/%d   [COST]\n",
-        nMixAnds, nMixLev, Gia_ManPiNum(pMix), Gia_ManPoNum(pMix) );
-    Abc_Print( 1, "total:     and = %d  lev = %d  bufs = %d\n",
-        nAllAnds, nAllLev, Gia_ManBufNum(pAll) );
-    Abc_Print( 1, "objective: mixer-only and = %d  mixer-only lev = %d\n", nMixAnds, nMixLev );
-    Abc_Print( 1, "verify:    %s\n", fOk ? "equivalent" : "FAILED" );
+    fSumOk    = (nAllAnds == nEncAnds + nMixAnds);
+    Openc_PrintGateReport( p->pMixMethod ? p->pMixMethod : "acd", Gia_ManPoNum(pEnc),
+        nEncAnds, nEncLev, Gia_ManPiNum(pMix), nMixAnds, nMixLev, nMixAnds, nAllAnds, fSumOk );
+    Abc_Print( 1, "    objective: mixer-only and = %d  mixer-only lev = %d  [encoder excluded]\n", nMixAnds, nMixLev );
+    Abc_Print( 1, "    verify:    %s\n", fOk ? "equivalent" : "FAILED" );
     Abc_PrintTime( 1, "runtime", clk );
     Abc_Print( 1, "\n" );
 }
@@ -4052,6 +4072,148 @@ void Gia_ManOpencPrintBaseline( Gia_Man_t * p, int fAreaOpt )
     Abc_Print( 1, "baseline &dc2:      and = %d  lev = %d\n",
         Gia_ManAndNotBufNum(pOpt), Gia_ManLevelNum(pOpt) );
     Gia_ManStop( pOpt );
+}
+
+/* Operand-support classification (transitive PI ancestry):
+   encoder AND = support from exactly one operand partition;
+   mixer AND   = support from two or more operands;
+   other AND   = no PI in TFI (constants only). Buffers are excluded (same metric as Gia_ManAndNotBufNum). */
+static int Openc_PiSupportOfCi( int iPi, int nOps, int * pLo, int * pHi )
+{
+    int k, mask = 0;
+    for ( k = 0; k < nOps; k++ )
+        if ( iPi >= pLo[k] && iPi < pHi[k] )
+            mask |= 1 << k;
+    return mask;
+}
+
+static int Openc_PiSupportPop( int s )
+{
+    int c = 0;
+    while ( s )
+    {
+        c += s & 1;
+        s >>= 1;
+    }
+    return c;
+}
+
+int Gia_ManOpencCountPiSupport( Gia_Man_t * p, int nOps, int * pLo, int * pHi,
+    int * pEncAnd, int * pEncAndPerOp, int * pMixAnd, int * pOtherAnd )
+{
+    Gia_Obj_t * pObj;
+    Vec_Int_t * vSup;
+    int i, k, nPi, iObj, s, nEnc = 0, nMix = 0, nOther = 0;
+    if ( pEncAnd )
+        *pEncAnd = 0;
+    if ( pMixAnd )
+        *pMixAnd = 0;
+    if ( pOtherAnd )
+        *pOtherAnd = 0;
+    if ( pEncAndPerOp && nOps > 0 )
+        for ( k = 0; k < nOps; k++ )
+            pEncAndPerOp[k] = 0;
+    if ( p == NULL || nOps < 1 )
+        return 0;
+    nPi = Gia_ManPiNum( p );
+    for ( k = 0; k < nOps; k++ )
+        if ( pLo[k] < 0 || pHi[k] > nPi || pLo[k] >= pHi[k] )
+            return 0;
+    vSup = Vec_IntStart( Gia_ManObjNum(p) );
+    Gia_ManForEachObj( p, pObj, iObj )
+    {
+        if ( Gia_ObjIsCi(pObj) )
+            Vec_IntWriteEntry( vSup, iObj, Openc_PiSupportOfCi( Gia_ObjCioId(pObj), nOps, pLo, pHi ) );
+        else if ( Gia_ObjIsAnd(pObj) )
+        {
+            s = Vec_IntEntry( vSup, Gia_ObjFaninId0p(p, pObj) );
+            s |= Vec_IntEntry( vSup, Gia_ObjFaninId1p(p, pObj) );
+            if ( Gia_ObjIsMux(p, pObj) )
+                s |= Vec_IntEntry( vSup, Gia_ObjFaninId2p(p, pObj) );
+            Vec_IntWriteEntry( vSup, iObj, s );
+        }
+        else if ( Gia_ObjIsBuf(pObj) )
+            Vec_IntWriteEntry( vSup, iObj, Vec_IntEntry(vSup, Gia_ObjFaninId0p(p, pObj)) );
+    }
+    Gia_ManForEachAnd( p, pObj, i )
+    {
+        int nFans;
+        if ( Gia_ObjIsBuf(pObj) )
+            continue;
+        s = Vec_IntEntry( vSup, Gia_ObjId(p, pObj) );
+        nFans = Openc_PiSupportPop( s );
+        if ( nFans >= 2 )
+            nMix++;
+        else if ( nFans == 1 )
+        {
+            nEnc++;
+            if ( pEncAndPerOp && nOps > 0 )
+            {
+                for ( k = 0; k < nOps; k++ )
+                    if ( s == (1 << k) )
+                        pEncAndPerOp[k]++;
+            }
+        }
+        else
+            nOther++;
+    }
+    Vec_IntFree( vSup );
+    if ( pEncAnd )
+        *pEncAnd = nEnc;
+    if ( pMixAnd )
+        *pMixAnd = nMix;
+    if ( pOtherAnd )
+        *pOtherAnd = nOther;
+    return 1;
+}
+
+int Gia_ManOpencCountPiSupport2( Gia_Man_t * p, int iSplit,
+    int * pEncAnd, int * pEncA, int * pEncB, int * pMixAnd, int * pOtherAnd )
+{
+    int Lo[2], Hi[2], Per[2], nEnc, nMix, nOther;
+    if ( iSplit < 1 || iSplit >= Gia_ManPiNum(p) )
+        return 0;
+    Lo[0] = 0;       Hi[0] = iSplit;
+    Lo[1] = iSplit;  Hi[1] = Gia_ManPiNum(p);
+    if ( !Gia_ManOpencCountPiSupport( p, 2, Lo, Hi, &nEnc, Per, &nMix, &nOther ) )
+        return 0;
+    if ( pEncAnd )   *pEncAnd   = nEnc;
+    if ( pEncA )     *pEncA     = Per[0];
+    if ( pEncB )     *pEncB     = Per[1];
+    if ( pMixAnd )   *pMixAnd   = nMix;
+    if ( pOtherAnd ) *pOtherAnd = nOther;
+    return 1;
+}
+
+void Gia_ManOpencPrintPiSupportReport( Gia_Man_t * p, int iSplit )
+{
+    int nEnc, nEncA, nEncB, nMix, nOther, nAll, nSum;
+    if ( !Gia_ManOpencCountPiSupport2( p, iSplit, &nEnc, &nEncA, &nEncB, &nMix, &nOther ) )
+    {
+        Abc_Print( -1, "&openc: PI-support report needs 1 <= split < nPI (got split=%d, nPI=%d).\n",
+            iSplit, p ? Gia_ManPiNum(p) : 0 );
+        return;
+    }
+    nAll = Gia_ManAndNotBufNum( p );
+    nSum = nEnc + nMix + nOther;
+    Abc_Print( 1, "\nPI-support encoder/mixer report (transitive operand ancestry)\n" );
+    Abc_Print( 1, "--------------------------------------------------------------\n" );
+    Abc_Print( 1, "definition:  encoder = AND nodes whose PI support lies in one operand;\n" );
+    Abc_Print( 1, "             mixer   = AND nodes whose PI support spans 2+ operands;\n" );
+    Abc_Print( 1, "             other   = AND nodes with no PI in TFI (constants only).\n" );
+    Abc_Print( 1, "operand A:   PI[%d .. %d]   (%d PIs)\n", 0, iSplit - 1, iSplit );
+    Abc_Print( 1, "operand B:   PI[%d .. %d]   (%d PIs)\n", iSplit, Gia_ManPiNum(p) - 1, Gia_ManPiNum(p) - iSplit );
+    Abc_Print( 1, "  encoder:\n" );
+    Abc_Print( 1, "      ANDs: %d  (A-only %d, B-only %d)\n", nEnc, nEncA, nEncB );
+    Abc_Print( 1, "  mixer:\n" );
+    Abc_Print( 1, "      ANDs: %d\n", nMix );
+    if ( nOther )
+        Abc_Print( 1, "  other (constant-only): ANDs: %d\n", nOther );
+    Abc_Print( 1, "  combined:\n" );
+    Abc_Print( 1, "      ANDs: %d  (enc %d + mix %d + other %d; total non-buf AND %d%s)\n",
+        nEnc + nMix + nOther, nEnc, nMix, nOther, nAll,
+        (nSum == nAll) ? "; OK" : "; MISMATCH" );
+    Abc_Print( 1, "\n" );
 }
 
 
