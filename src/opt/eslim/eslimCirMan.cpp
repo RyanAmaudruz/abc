@@ -920,7 +920,7 @@ namespace eSLIM {
     for (int i = 1; i <= getNofPos(); i++) {
       insertSorted(nodes[nodes.size() - i].get(), nodes_aux, replacement, out_map, invec);
     }
-    assert (nodes_aux.size() <= nodes.size());
+    assert (nodes_aux.size() <= nodes.size() - size_diff - getNofPos());
     int current_depth = 0;
     for (int i = 0; i < getNofPos(); i++) {
       int po_id = getNofObjs() - getNofPos() + i;
