@@ -67,6 +67,25 @@
 #endif
 #endif
 
+#if defined(ABC_USE_NO_THREAD_LOCAL)
+#define ABC_THREAD_LOCAL
+#define ABC_HAS_THREAD_LOCAL 0
+#elif defined(_MSC_VER)
+#define ABC_THREAD_LOCAL __declspec(thread)
+#define ABC_HAS_THREAD_LOCAL 1
+#elif defined(__GNUC__) || defined(__clang__)
+#define ABC_THREAD_LOCAL __thread
+#define ABC_HAS_THREAD_LOCAL 1
+#elif defined(__cplusplus) && __cplusplus >= 201103L
+#define ABC_THREAD_LOCAL thread_local
+#define ABC_HAS_THREAD_LOCAL 1
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define ABC_THREAD_LOCAL _Thread_local
+#define ABC_HAS_THREAD_LOCAL 1
+#else
+#error "No thread-local mechanism; build with ABC_USE_NO_THREAD_LOCAL for a single-threaded configuration"
+#endif
+
 /*
 #ifdef __cplusplus
 #error "C++ code"
@@ -296,6 +315,24 @@ static inline int      Abc_Base16LogW( word n )               { int r; if ( n < 
 static inline char *   Abc_UtilStrsav( char * s )             { return s ? strcpy(ABC_ALLOC(char, strlen(s)+1), s) : NULL;  }
 static inline char *   Abc_UtilStrsavTwo( char * s, char * a ){ char * r; if (!a) return Abc_UtilStrsav(s); r = ABC_ALLOC(char, strlen(s)+strlen(a)+1); snprintf(r, strlen(s)+strlen(a)+1, "%s%s", s, a ); return r; }
 static inline char *   Abc_UtilStrsavNum( char * s, int n )   { char * r; if (!s) return NULL;              r = ABC_ALLOC(char, strlen(s)+12+1);        snprintf(r, strlen(s)+12+1, "%s%d", s, n ); return r; }
+static inline char *   Abc_UtilStrtok( char * s, const char * d, char ** pSave )
+{
+    char * pToken;
+    if ( s == NULL )
+        s = *pSave;
+    s += strspn( s, d );
+    if ( *s == '\0' )
+    {
+        *pSave = s;
+        return NULL;
+    }
+    pToken = s;
+    s += strcspn( s, d );
+    if ( *s != '\0' )
+        *s++ = '\0';
+    *pSave = s;
+    return pToken;
+}
 static inline int      Abc_BitByteNum( int nBits )            { return (nBits>>3) + ((nBits&7)  > 0);                       }
 static inline int      Abc_BitWordNum( int nBits )            { return (nBits>>5) + ((nBits&31) > 0);                       }
 static inline int      Abc_Bit6WordNum( int nBits )           { return (nBits>>6) + ((nBits&63) > 0);                       }
@@ -351,6 +388,19 @@ static inline abctime Abc_Clock()
     return (abctime) clock();
 #endif
 }
+// Returns monotonic wall-clock time in nanoseconds.  The dynamic SRM
+// heuristics use this to compare rebuild and reuse costs.
+static inline abctime Abc_ClockHr()
+{
+#if defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+    if ( clock_gettime( CLOCK_MONOTONIC, &ts ) < 0 )
+        return (abctime)-1;
+    return ((abctime) ts.tv_sec) * 1000000000 + (abctime) ts.tv_nsec;
+#else
+    return (abctime)( (double)Abc_Clock() * 1.0e9 / CLOCKS_PER_SEC );
+#endif
+}
 // counting thread time
 static inline abctime Abc_ThreadClock()
 {
@@ -370,6 +420,15 @@ static inline abctime Abc_ThreadClock()
     return (abctime) clock();
 #endif
 }
+
+// stopwatch timing for verbose statistics
+#if defined(ABC_NO_TIMERS)
+    #define ABC_TIME_START(cond, clk)          do { (void)(clk); } while (0)
+    #define ABC_TIME_STOP(cond, acc, clk)      do { (void)(clk); } while (0)
+#else
+    #define ABC_TIME_START(cond, clk)          do { clk = (cond) ? Abc_Clock() : 0; } while (0)
+    #define ABC_TIME_STOP(cond, acc, clk)      do { if (cond) acc += Abc_Clock() - clk; } while (0)
+#endif
 
 // misc printing procedures
 enum Abc_VerbLevel
@@ -538,6 +597,25 @@ static inline void Abc_ReverseOrder( int * pA, int nA )
     int i;
     for ( i = 0; i < nA/2; i++ )
         ABC_SWAP( int, pA[i], pA[nA-1-i] );
+}
+
+static inline const char * Abc_GetTmpDir()
+{
+    const char * s;
+#if defined(_MSC_VER) || defined(__MINGW32__)
+    s = getenv( "TMP" );
+    if ( s && *s )
+        return s;
+    s = getenv( "TEMP" );
+    if ( s && *s )
+        return s;
+    return ".";
+#else
+    s = getenv( "TMPDIR" );
+    if ( s && *s )
+        return s;
+    return "/tmp";
+#endif
 }
 
 

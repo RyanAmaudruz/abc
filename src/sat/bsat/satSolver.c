@@ -1522,14 +1522,15 @@ int sat_solver_simplify(sat_solver* s)
 
 void sat_solver_reducedb(sat_solver* s)
 {
-    static abctime TimeTotal = 0;
-    abctime clk = Abc_Clock();
+    int fVerbose = s->fVerbose;
+    abctime clk;
     Sat_Mem_t * pMem = &s->Mem;
     int nLearnedOld = veci_size(&s->act_clas);
     int * act_clas = veci_begin(&s->act_clas);
     int * pPerm, * pArray, * pSortValues, nCutoffValue;
     int i, k, j, Id, Counter, CounterStart, nSelected;
     clause * c;
+    ABC_TIME_START(fVerbose, clk);
 
     assert( s->nLearntMax > 0 );
     assert( nLearnedOld == Sat_MemEntryNum(pMem, 1) );
@@ -1629,12 +1630,12 @@ void sat_solver_reducedb(sat_solver* s)
     assert( Counter == (int)s->stats.learnts );
 
     // report the results
-    TimeTotal += Abc_Clock() - clk;
-    if ( s->fVerbose )
+    ABC_TIME_STOP(fVerbose, s->timeReduceDb, clk);
+    if ( fVerbose )
     {
     Abc_Print(1, "reduceDB: Keeping %7d out of %7d clauses (%5.2f %%)  ",
         s->stats.learnts, nLearnedOld, 100.0 * s->stats.learnts / nLearnedOld );
-    Abc_PrintTime( 1, "Time", TimeTotal );
+    Abc_PrintTime( 1, "Time", s->timeReduceDb );
     }
 }
 
@@ -1644,8 +1645,6 @@ void sat_solver_rollback( sat_solver* s )
 {
     Sat_Mem_t * pMem = &s->Mem;
     int i, k, j;
-    static int Count = 0;
-    Count++;
     assert( s->iVarPivot >= 0 && s->iVarPivot <= s->size );
     assert( s->iTrailPivot >= 0 && s->iTrailPivot <= s->qtail );
     // reset implication queue
@@ -2431,4 +2430,3 @@ void * sat_solver_store_release( sat_solver * s )
 
 
 ABC_NAMESPACE_IMPL_END
-

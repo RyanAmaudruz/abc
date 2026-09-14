@@ -116,11 +116,10 @@ int Aig_ObjRequiredLevel( Aig_Man_t * p, Aig_Obj_t * pObj )
 ***********************************************************************/
 int Aig_ObjReverseLevelNew( Aig_Man_t * p, Aig_Obj_t * pObj )
 {
-    Aig_Obj_t * pFanout;
-    int i, iFanout = -1, LevelCur, Level = 0;
-    Aig_ObjForEachFanout( p, pObj, pFanout, iFanout, i )
+    int i, iFanout = -1, FanoutId, LevelCur, Level = 0;
+    Aig_ObjForEachFanoutId( p, pObj, FanoutId, iFanout, i )
     {
-        LevelCur = Aig_ObjReverseLevel( p, pFanout );
+        LevelCur = Vec_IntGetEntry( p->vLevelR, FanoutId );
         Level = Abc_MaxInt( Level, LevelCur );
     }
     return Level + 1;
@@ -247,9 +246,11 @@ void Aig_ManUpdateLevel( Aig_Man_t * p, Aig_Obj_t * pObjNew )
 void Aig_ManUpdateReverseLevel( Aig_Man_t * p, Aig_Obj_t * pObjNew )
 {
     Aig_Obj_t * pFanin, * pTemp;
-    int LevelOld, LevFanin, Lev, k;
+    int LevelOld, LevelNew, LevelReq, LevFanin, Lev, k;
     assert( p->vLevelR != NULL );
     assert( Aig_ObjIsNode(pObjNew) );
+    // ensure reverse levels array is large enough for all objects
+    Vec_IntFillExtra( p->vLevelR, Aig_ManObjNumMax(p), 0 );
     // allocate level if needed
     if ( p->vLevels == NULL )
         p->vLevels = Vec_VecAlloc( Aig_ManLevels(p) + 8 );
@@ -267,28 +268,35 @@ void Aig_ManUpdateReverseLevel( Aig_Man_t * p, Aig_Obj_t * pObjNew )
     Vec_VecForEachEntryStart( Aig_Obj_t *, p->vLevels, pTemp, Lev, k, LevelOld )
     {
         pTemp->fMarkA = 0;
-        LevelOld = Aig_ObjReverseLevel(p, pTemp); 
-        assert( LevelOld == Lev );
-        Aig_ObjSetReverseLevel( p, pTemp, Aig_ObjReverseLevelNew(p, pTemp) );
-        // if the level did not change, to need to check the fanout levels
-        if ( Aig_ObjReverseLevel(p, pTemp) == Lev )
+        assert( Aig_ObjReverseLevel(p, pTemp) == Lev );
+        // if level did not change, no need to check fanin levels
+        LevelNew = Aig_ObjReverseLevelNew( p, pTemp );
+        if ( LevelNew == Lev )
             continue;
+        Aig_ObjSetReverseLevel( p, pTemp, LevelNew );
+        LevelReq = LevelNew > Lev ? LevelNew : Lev + 1;
         // schedule fanins for level update
         pFanin = Aig_ObjFanin0(pTemp);
         if ( Aig_ObjIsNode(pFanin) && !pFanin->fMarkA )
         {
             LevFanin = Aig_ObjReverseLevel( p, pFanin );
             assert( LevFanin >= Lev );
-            Vec_VecPush( p->vLevels, LevFanin, pFanin );
-            pFanin->fMarkA = 1;
+            if ( LevFanin <= LevelReq )
+            {
+                Vec_VecPush( p->vLevels, LevFanin, pFanin );
+                pFanin->fMarkA = 1;
+            }
         }
         pFanin = Aig_ObjFanin1(pTemp);
         if ( Aig_ObjIsNode(pFanin) && !pFanin->fMarkA )
         {
             LevFanin = Aig_ObjReverseLevel( p, pFanin );
             assert( LevFanin >= Lev );
-            Vec_VecPush( p->vLevels, LevFanin, pFanin );
-            pFanin->fMarkA = 1;
+            if ( LevFanin <= LevelReq )
+            {
+                Vec_VecPush( p->vLevels, LevFanin, pFanin );
+                pFanin->fMarkA = 1;
+            }
         }
     }
 }
