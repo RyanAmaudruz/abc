@@ -43949,6 +43949,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
     if ( pValidityFile != NULL && fMiter )
     {
         Abc_Print( -1, "Global don't-cares (-G) cannot be combined with the single-miter mode (-m).\n" );
+        Vec_PtrFree( vDefines );
+        Vec_PtrFree( vBoxes );
+        Vec_PtrFree( vInsts );
         return 1;
     }
     if ( pFileName2 )
@@ -44174,6 +44177,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
             Abc_Print( -1, "Could not read the validity AIG from \"%s\".\n", pValidityFile );
             if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
             if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            Vec_PtrFree( vDefines );
+            Vec_PtrFree( vBoxes );
+            Vec_PtrFree( vInsts );
             return 1;
         }
         pClean = Gia_ManCleanup( pRaw );
@@ -44185,6 +44191,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
             Gia_ManStop( pClean );
             if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
             if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            Vec_PtrFree( vDefines );
+            Vec_PtrFree( vBoxes );
+            Vec_PtrFree( vInsts );
             return 1;
         }
         if ( Gia_ManPiNum(pClean) != Gia_ManPiNum(pGias[0]) )
@@ -44194,6 +44203,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
             Gia_ManStop( pClean );
             if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
             if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            Vec_PtrFree( vDefines );
+            Vec_PtrFree( vBoxes );
+            Vec_PtrFree( vInsts );
             return 1;
         }
         if ( pClean->vNamesIn != NULL && pGias[0]->vNamesIn != NULL )
@@ -44210,6 +44222,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
                     Gia_ManStop( pClean );
                     if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
                     if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+                    Vec_PtrFree( vDefines );
+                    Vec_PtrFree( vBoxes );
+                    Vec_PtrFree( vInsts );
                     return 1;
                 }
             }
@@ -44222,6 +44237,9 @@ int Abc_CommandAbc9Cec( Abc_Frame_t * pAbc, int argc, char ** argv )
             Gia_ManStop( pClean );
             if ( pGias[0] != pAbc->pGia ) Gia_ManStop( pGias[0] );
             if ( pGias[1] != pAbc->pGiaSaved ) Gia_ManStop( pGias[1] );
+            Vec_PtrFree( vDefines );
+            Vec_PtrFree( vBoxes );
+            Vec_PtrFree( vInsts );
             return 1;
         }
         else
