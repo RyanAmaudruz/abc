@@ -1053,7 +1053,7 @@ void Cec4_ManPrintTfiConeStats( Gia_Man_t * p )
 }
 void Cec4_ManPrintStats( Gia_Man_t * p, Cec_ParFra_t * pPars, Cec4_Man_t * pMan, int fSim )
 {
-    static abctime clk = 0;
+    static ABC_THREAD_LOCAL abctime clk = 0;
     abctime clkThis = 0;
     int i, nLits, Counter = 0, Counter0 = 0, CounterX = 0;
     if ( !pPars->fVerbose )
@@ -2174,6 +2174,7 @@ Vec_Int_t * Cec4_ManComputeMapping( Gia_Man_t * p, Gia_Man_t * pAig, int fVerbos
         else
         {
             int iLitGia2 = Gia_ManObj(p, pAig2Abc[iReprGia] )->Value;
+            (void)iLitGia2;
             assert( Gia_ObjReprSelf(pAig, Abc_Lit2Var(iLitGia)) == Gia_ObjReprSelf(pAig, Abc_Lit2Var(iLitGia2)) );
             assert( i > pAig2Abc[iReprGia] );
             Vec_IntWriteEntry( vReprs, i, pAig2Abc[iReprGia] );
@@ -2193,6 +2194,7 @@ void Cec4_ManVerifyEquivs( Gia_Man_t * p, Vec_Int_t * vRes, int fVerbose )
     int i, iRepr, nWords = 4; word * pSim0, * pSim1;
     Vec_Wrd_t * vSimsCi = Vec_WrdStartRandom( Gia_ManCiNum(p) * nWords );
     int nObjs = Vec_WrdShiftOne( vSimsCi, nWords ), nFails = 0;
+    (void)nObjs;
     Vec_Wrd_t * vSims   = Gia_ManSimPatSimOut( p, vSimsCi, 0 );
     assert( Vec_IntSize(vRes) == Gia_ManObjNum(p) );
     assert( nObjs == Gia_ManCiNum(p) );
@@ -2944,6 +2946,7 @@ void saveSimVectors( Gia_Man_t * p, Vec_Ptr_t * pValues, int bitLength, int jth_
 
     int i, Id;
     int nWords = bitLength / 64;
+    (void)nWords;
     assert(nWords == 0); // Not considering case with large outgold values
     Gia_ManForEachCiId( p, Id, i ){
         Vec_Wrd_t * pValuesPi = (Vec_Wrd_t *) Vec_PtrEntry( pValues, i );
@@ -4480,4 +4483,3 @@ Gia_Man_t * Cec_SimGenRun( Gia_Man_t * p, Cec_ParSimGen_t * pPars ){
 
 
 ABC_NAMESPACE_IMPL_END
-

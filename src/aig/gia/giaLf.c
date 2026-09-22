@@ -395,7 +395,7 @@ static inline Lf_Cut_t * Lf_ManFetchSet( Lf_Man_t * p, int i )
 }
 static inline int Lf_ManPrepareSet( Lf_Man_t * p, int iObj, int Index, Lf_Cut_t ** ppCutSet )
 {
-    static word CutTemp[3][LF_CUT_WORDS];
+    static ABC_THREAD_LOCAL word CutTemp[3][LF_CUT_WORDS];
     if ( Vec_IntEntry(&p->vOffsets, iObj) == -1 )
         return Lf_CutCreateUnit( (*ppCutSet = (Lf_Cut_t *)CutTemp[Index]), iObj );
     {
@@ -589,12 +589,12 @@ static inline Lf_Cut_t * Lf_MemLoadMuxCut( Lf_Man_t * p, int iObj, Lf_Cut_t * pC
 }
 static inline Lf_Cut_t * Lf_ObjCutMux( Lf_Man_t * p, int i )
 {
-    static word CutSet[LF_CUT_WORDS];
+    static ABC_THREAD_LOCAL word CutSet[LF_CUT_WORDS];
     return Lf_MemLoadMuxCut( p, i, (Lf_Cut_t *)CutSet );
 }
 static inline Lf_Cut_t * Lf_ObjCutBest( Lf_Man_t * p, int i )
 {
-    static word CutSet[LF_CUT_WORDS];
+    static ABC_THREAD_LOCAL word CutSet[LF_CUT_WORDS];
     Lf_Bst_t * pBest = Lf_ObjReadBest( p, i );
     Lf_Cut_t * pCut = (Lf_Cut_t *)CutSet;
     int Index = Lf_BestCutIndex( pBest );
@@ -1033,6 +1033,8 @@ static inline int Lf_CutComputeTruthMux6( Lf_Man_t * p, Lf_Cut_t * pCut0, Lf_Cut
 }
 static inline int Lf_CutComputeTruthMux( Lf_Man_t * p, Lf_Cut_t * pCut0, Lf_Cut_t * pCut1, Lf_Cut_t * pCutC, int fCompl0, int fCompl1, int fComplC, Lf_Cut_t * pCutR )
 {
+    assert( p->pPars->nLutSize >= 0 && p->pPars->nLutSize <= LF_LEAF_MAX );
+    if ( (unsigned)p->pPars->nLutSize > LF_LEAF_MAX ) abort();
     if ( p->pPars->nLutSize <= 6 )
         return Lf_CutComputeTruthMux6( p, pCut0, pCut1, pCutC, fCompl0, fCompl1, fComplC, pCutR );
     {
@@ -1617,6 +1619,7 @@ int Lf_ManSetMapRefs( Lf_Man_t * p )
 void Lf_ManCountMapRefsOne( Lf_Man_t * p, int iObj )
 {
     Lf_Bst_t * pBest = Lf_ObjReadBest( p, iObj );
+    (void)pBest;
     Lf_Cut_t * pCut = Lf_ObjCutBest( p, iObj );
     int k ,Required = Lf_ObjRequired( p, iObj );
     assert( Lf_ObjMapRefNum(p, iObj) > 0 );
@@ -2349,4 +2352,3 @@ Gia_Man_t * Gia_ManPerformLfMapping( Gia_Man_t * p, Jf_Par_t * pPars, int fNorma
 
 
 ABC_NAMESPACE_IMPL_END
-

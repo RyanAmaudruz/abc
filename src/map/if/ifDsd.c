@@ -234,7 +234,7 @@ char * If_DsdManGetCellStr( If_DsdMan_t * p )
 ***********************************************************************/
 static inline word ** If_ManDsdTtElems()
 {
-    static word TtElems[DAU_MAX_VAR+1][DAU_MAX_WORD], * pTtElems[DAU_MAX_VAR+1] = {NULL};
+    static ABC_THREAD_LOCAL word TtElems[DAU_MAX_VAR+1][DAU_MAX_WORD], * pTtElems[DAU_MAX_VAR+1] = {NULL};
     if ( pTtElems[0] == NULL )
     {
         int v;
@@ -387,13 +387,19 @@ void If_DsdManDumpDsd( If_DsdMan_t * p, int Support )
         vMap = Vec_IntStart( Vec_MemEntryNum(p->vTtMem[v]) );
         If_DsdVecForEachObj( &p->vObjs, pObj, i )
         {
+            int TruthId;
             if ( Support && Support != If_DsdObjSuppSize(pObj) )
                 continue;
             if ( If_DsdObjType(pObj) != IF_DSD_PRIME )
                 continue;
-            if ( Vec_IntEntry(vMap, If_DsdObjTruthId(p, pObj)) )
+            if ( If_DsdObjFaninNum(pObj) != v )
                 continue;
-            Vec_IntWriteEntry(vMap, If_DsdObjTruthId(p, pObj), 1);
+            TruthId = If_DsdObjTruthId(p, pObj);
+            assert( TruthId >= 0 && TruthId < Vec_IntSize(vMap) );
+            if ( TruthId < 0 || TruthId >= Vec_IntSize(vMap) ) abort();
+            if ( Vec_IntEntry(vMap, TruthId) )
+                continue;
+            Vec_IntWriteEntry(vMap, TruthId, 1);
             fprintf( pFile, "0x" );
             Abc_TtPrintHexRev( pFile, If_DsdObjTruth(p, pObj), Support ? Abc_MaxInt(Support, 6) : v );
             fprintf( pFile, "\n" );
@@ -2835,4 +2841,3 @@ void Id_DsdManTuneThresh( If_DsdMan_t * p, int fUnate, int fThresh, int fThreshH
 
 
 ABC_NAMESPACE_IMPL_END
-

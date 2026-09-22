@@ -610,6 +610,10 @@ namespace eSLIM {
 
 template <typename Circuitrepresentation> 
 Circuitrepresentation* runeSLIM(Circuitrepresentation * cir, const eSLIM_ParamStruct* params) {
+  if (params->pValidity != NULL && params->nWindows) {
+    std::cout << "Error: global don't-cares cannot be combined with windowing.\n";
+    return NULL;
+  }
   // Windowing does currently not support Deleyconstraints/Delayoptimisation
   if (params->nWindows && params->synthesis_approach != 0) {
     return NULL;

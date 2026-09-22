@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <time.h>
+#include "abc_global.h"
 #ifdef _WIN32
 #include <io.h>
 #define mkstemp(p) _mktemp_s(p, strlen(p)+1)
@@ -83,9 +84,6 @@ ABC_NAMESPACE_IMPL_START
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 
-#define ABC_ALLOC(type, n)   ((type*)malloc((size_t)(n) * sizeof(type)))
-#define ABC_CALLOC(type, n)  ((type*)calloc((size_t)(n), sizeof(type)))
-#define ABC_FREE(p)          do { free(p); (p) = NULL; } while (0)
 
 typedef struct AigNode_ { uint32_t f0, f1; } AigNode;
 typedef struct AigMan_ {
@@ -345,8 +343,11 @@ static int make_tmp_file(char *path, size_t cap, const char *prefix) {
     static int seq = 0; // no risk of collision since we're in a sandbox
     snprintf(path, cap, "%s%08d", prefix, seq++);
     int fd = open(path, O_CREAT | O_EXCL | O_RDWR, S_IREAD | S_IWRITE);
+#elif defined(_WIN32)
+    snprintf(path, cap, "%s\\%sXXXXXX", Abc_GetTmpDir(), prefix);
+    int fd = mkstemp(path);
 #else
-    snprintf(path, cap, "/tmp/%sXXXXXX", prefix);
+    snprintf(path, cap, "%s/%sXXXXXX", Abc_GetTmpDir(), prefix);
     int fd = mkstemp(path);
 #endif
     if (fd < 0) return 0;
@@ -360,8 +361,11 @@ static int make_tmp_path_noexist(char *path, size_t cap, const char *prefix) {
     static int seq = 0; // no risk of collision since we're in a sandbox
     snprintf(path, cap, "%s%08d", prefix, seq++);
     int fd = open(path, O_CREAT | O_EXCL | O_RDWR, S_IREAD | S_IWRITE);
+#elif defined(_WIN32)
+    snprintf(path, cap, "%s\\%sXXXXXX", Abc_GetTmpDir(), prefix);
+    int fd = mkstemp(path);
 #else
-    snprintf(path, cap, "/tmp/%sXXXXXX", prefix);
+    snprintf(path, cap, "%s/%sXXXXXX", Abc_GetTmpDir(), prefix);
     int fd = mkstemp(path);
 #endif
     if (fd < 0) return 0;
@@ -768,5 +772,4 @@ int main(int argc, char **argv) {
 #ifdef AIGSIM_LIBRARY_ONLY
 ABC_NAMESPACE_IMPL_END
 #endif
-
 

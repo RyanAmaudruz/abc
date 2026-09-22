@@ -61,7 +61,7 @@ static Abc_Obj_t *  Abc_NodeFromMapSuperChoice_rec( Abc_Ntk_t * pNtkNew, Map_Sup
 ***********************************************************************/
 Abc_Ntk_t * Abc_NtkMap( Abc_Ntk_t * pNtk, Mio_Library_t* userLib, double DelayTarget, double AreaMulti, double DelayMulti, float LogFan, float Slew, float Gain, int nGatesMin, int fRecovery, int fSwitching, int fSkipFanout, int fUseProfile, int fUseBuffs, int fVerbose )
 {
-    static int fUseMulti = 0;
+    static ABC_THREAD_LOCAL int fUseMulti = 0;
     int fShowSwitching = 1;
     Abc_Ntk_t * pNtkNew;
     Map_Man_t * pMan;
@@ -997,6 +997,7 @@ Abc_Ntk_t * Abc_NtkReadFromFile( char * pFileName )
     FILE * pFile = fopen( pFileName, "rb" );
     char * pArray = ABC_ALLOC( char, nSize );
     int nSize2 = fread( pArray, sizeof(char), nSize, pFile );
+    (void)nSize2;
     assert( nSize2 == nSize );
     fclose( pFile );
     Abc_Ntk_t * pNtk = Abc_NtkFromMiniMapping( (int*)pArray );
@@ -1009,6 +1010,7 @@ int Abc_NtkWriteToFile( char * pFileName, Abc_Ntk_t * pNtk )
     FILE * pFile = fopen( pFileName, "wb" );
     if ( pFile == NULL ) { printf( "Cannot open input file \"%s\" for writing.\n", pFileName ); return 0; }
     int nSize = fwrite( Vec_IntArray(vRes), sizeof(int), Vec_IntSize(vRes), pFile );
+    (void)nSize;
     assert( nSize == Vec_IntSize(vRes) );
     Vec_IntFree( vRes );
     fclose( pFile );
@@ -1238,4 +1240,3 @@ void Abc_NtkSetAndGateDelay( Abc_Frame_t * pAbc, float Delay )
 
 
 ABC_NAMESPACE_IMPL_END
-

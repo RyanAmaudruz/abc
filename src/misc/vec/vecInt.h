@@ -98,6 +98,8 @@ struct Vec_Int_t_
 static inline Vec_Int_t * Vec_IntAlloc( int nCap )
 {
     Vec_Int_t * p;
+    assert( nCap >= 0 );
+    if ( nCap < 0 ) abort();
     p = ABC_ALLOC( Vec_Int_t, 1 );
     if ( nCap > 0 && nCap < 16 )
         nCap = 16;
@@ -635,8 +637,11 @@ static inline void Vec_IntFillExtra( Vec_Int_t * p, int nSize, int Fill )
         Vec_IntGrow( p, nSize );
     else if ( nSize > p->nCap )
         Vec_IntGrow( p, p->nCap < ABC_INT_MAX/2 ? 2 * p->nCap : ABC_INT_MAX );
-    for ( i = p->nSize; i < nSize; i++ )
-        p->pArray[i] = Fill;
+    if ( Fill == 0 || Fill == -1 )
+        memset( p->pArray + p->nSize, Fill, sizeof(int) * (size_t)(nSize - p->nSize) );
+    else
+        for ( i = p->nSize; i < nSize; i++ )
+            p->pArray[i] = Fill;
     p->nSize = nSize;
 }
 
@@ -2368,4 +2373,3 @@ ABC_NAMESPACE_HEADER_END
 ////////////////////////////////////////////////////////////////////////
 ///                       END OF FILE                                ///
 ////////////////////////////////////////////////////////////////////////
-

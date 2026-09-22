@@ -234,6 +234,7 @@ static inline void Dau_DsdMergeInlineDefinitions( char * pDsd, int * pMatches, D
     int i;
     char * pDef;
     char * pBegin = pRes;
+    (void)pBegin;
     for ( i = 0; pDsd[i]; i++ )
     {
         // skip non-DSD block
@@ -571,8 +572,6 @@ void Dau_DsdRemoveBraces( char * pDsd, int * pMatches )
 }
 
 
-abctime s_TimeComp[4] = {0};
-
 /**Function*************************************************************
 
   Synopsis    [Performs merging of two DSD formulas.]
@@ -588,8 +587,7 @@ char * Dau_DsdMerge( char * pDsd0i, int * pPerm0, char * pDsd1i, int * pPerm1, i
 {
     int fVerbose = 0;
     int fCheck = 0;
-    static int Counter = 0;
-    static char pRes[2*DAU_MAX_STR+10];
+    static ABC_THREAD_LOCAL char pRes[2*DAU_MAX_STR+10];
     char pDsd0[DAU_MAX_STR];
     char pDsd1[DAU_MAX_STR];
     int pMatches0[DAU_MAX_STR];
@@ -605,8 +603,6 @@ char * Dau_DsdMerge( char * pDsd0i, int * pPerm0, char * pDsd1i, int * pPerm1, i
     word * pTruth, * pt = NULL, * pt0 = NULL, * pt1 = NULL;
     word pParts[3][DAU_MAX_WORD];
     int Status;
-    abctime clk = Abc_Clock();
-    Counter++;
     // create local copies
     Dau_DsdMergeCopy( pDsd0i, fCompl0, pDsd0 );
     Dau_DsdMergeCopy( pDsd1i, fCompl1, pDsd1 );
@@ -675,10 +671,8 @@ printf( "Normalized:\n" );
 if ( fVerbose )
 printf( "%s\n", pRes );
 
-        s_TimeComp[0] += Abc_Clock() - clk;
         return pRes;
     }
-s_TimeComp[3] += Abc_Clock() - clk;
     // create variable mapping
     nVarsTotal = Dau_DsdMergeCreateMaps( pVarPres, nVarsShared, pOld2New, pNew2Old );
     // perform variable replacement
@@ -760,10 +754,6 @@ printf( "%s\n", pRes );
             printf( "Dau_DsdMerge(): Verification failed!\n" );
     }
 
-    if ( Status == 0 )
-        s_TimeComp[1] += Abc_Clock() - clk;
-    else
-        s_TimeComp[2] += Abc_Clock() - clk;
     return pRes;
 }
 
@@ -821,4 +811,3 @@ void Dau_DsdTest66()
 
 
 ABC_NAMESPACE_IMPL_END
-

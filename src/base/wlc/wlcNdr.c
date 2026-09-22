@@ -178,7 +178,7 @@ int Ndr_TypeWlc2Ndr( int Type )
 ***********************************************************************/
 char * Ndr_ObjWriteConstant( unsigned * pBits, int nBits )
 {
-    static char Buffer[10000]; int i, Len;
+    static ABC_THREAD_LOCAL char Buffer[10000]; int i, Len;
     assert( nBits + 10 < 10000 );
     sprintf( Buffer, "%d\'b", nBits );
     Len = strlen(Buffer);
@@ -448,8 +448,10 @@ Wlc_Ntk_t * Wlc_NtkFromNdr( void * pData )
     {
         int End, Beg, Signed = Ndr_ObjReadRange(p, Obj, &End, &Beg);
         int nArray  = Ndr_ObjReadArray( p, Obj, NDR_INPUT, &pArray );
+        (void)nArray;
         int iObj    = Wlc_ObjAlloc( pNtk, WLC_OBJ_BUF, Signed, End, Beg );
         int NameId  = Ndr_ObjReadBody( p, Obj, NDR_OUTPUT );
+        (void)NameId;
         assert( nArray == 1 && NameId == -1 );
         pObj = Wlc_NtkObj( pNtk, iObj );
         Vec_IntFill( vFanins, 1, pArray[0] );
@@ -572,4 +574,3 @@ void Wlc_ReadNdrTest()
 
 
 ABC_NAMESPACE_IMPL_END
-

@@ -376,6 +376,7 @@ int Lpk_DsdAnalizeOne( Lpk_Fun_t * p, unsigned * ppTruths[5][16], Kit_DsdNtk_t *
     unsigned uNonDecSupp, uLateArrSupp;
     int i, k, nNonDecSize, nNonDecSizeMax;
     assert( nCofDepth >= 1 && nCofDepth <= 3 );
+    if ( nCofDepth < 1 || nCofDepth > 3 ) abort();
     assert( nCofDepth < (int)p->nLutK - 1 );
     assert( p->fSupports );
 
@@ -451,10 +452,11 @@ Kit_DsdPrint( stdout, pNtks[i] );
 ***********************************************************************/
 Lpk_Res_t * Lpk_DsdAnalize( Lpk_Man_t * pMan, Lpk_Fun_t * p, int nShared )
 { 
-    static Lpk_Res_t Res0, * pRes0 = &Res0;
-    static Lpk_Res_t Res1, * pRes1 = &Res1;
-    static Lpk_Res_t Res2, * pRes2 = &Res2;
-    static Lpk_Res_t Res3, * pRes3 = &Res3;
+    static ABC_THREAD_LOCAL Lpk_Res_t Res0, Res1, Res2, Res3;
+    Lpk_Res_t * pRes0 = &Res0;
+    Lpk_Res_t * pRes1 = &Res1;
+    Lpk_Res_t * pRes2 = &Res2;
+    Lpk_Res_t * pRes3 = &Res3;
     int fUseBackLooking = 1;
     Lpk_Res_t * pRes = NULL;
     Vec_Int_t * vBSets;
@@ -614,4 +616,3 @@ Lpk_Fun_t * Lpk_DsdSplit( Lpk_Man_t * pMan, Lpk_Fun_t * p, char * pCofVars, int 
 
 
 ABC_NAMESPACE_IMPL_END
-

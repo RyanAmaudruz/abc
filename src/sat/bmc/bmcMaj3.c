@@ -215,11 +215,12 @@ static inline void Maj3_ManPrintSolution( Maj3_Man_t * p )
 static inline int Maj3_ManEval( Maj3_Man_t * p )
 {
     int fUseMiddle = 1;
-    static int Flag = 0;
+    int Flag = 0;
     int i, k, iMint, pFanins[3]; word * pFaninsW[3];
     for ( i = p->nVars; i < p->nObjs; i++ )
     {
         int nFanins = Maj3_ManFindFanin( p, i, pFanins );
+        (void)nFanins;
         assert( nFanins == 3 );
         for ( k = 0; k < 3; k++ )
             pFaninsW[k] = Maj3_ManTruth( p, pFanins[k] );
@@ -620,6 +621,7 @@ void Zyx_SetConstVar( Zyx_Man_t * p, int Var, int Value )
 {
     int iLit = Abc_Var2Lit( Var, !Value );
     int status = bmcg_sat_solver_addclause( p->pSat, &iLit, 1 );
+    (void)status;
     assert( status );
     assert( Vec_IntEntry(p->vVarValues, Var) == -1 );
     Vec_IntWriteEntry( p->vVarValues, Var, Value );
@@ -989,6 +991,7 @@ int Zyx_ManAddCnfBlockSolution( Zyx_Man_t * p )
     for ( i = p->pPars->nVars; i < p->nObjs; i++ )
     {
         int nFanins = Zyx_ManCollectFanins( p, i );
+        (void)nFanins;
         assert( nFanins == p->pPars->nLutSize );
         for ( k = 0; k < p->pPars->nLutSize; k++ )
             Vec_IntPush( vLits, Abc_Var2Lit(Zyx_TopoVar(p, i, p->pFanins[i][k]), 1) );
@@ -1009,6 +1012,7 @@ int Zyx_ManAddCnfLazyFunc2( Zyx_Man_t * p, int iMint )
     for ( i = p->pPars->nVars; i < p->nObjs; i++ )
     {
         int nFanins = Zyx_ManCollectFanins( p, i );
+        (void)nFanins;
         assert( nFanins == p->pPars->nLutSize );
         if ( p->pPars->fMajority )
         {
@@ -1196,12 +1200,13 @@ static void Zyx_ManPrintSolution( Zyx_Man_t * p, int fCompl, int fFirst )
 }
 static inline int Zyx_ManEval( Zyx_Man_t * p )
 {
-    static int Flag = 0;
+    int Flag = 0;
     //abctime clk = Abc_Clock();
     int i, k, j, iMint; word * pFaninsW[6], * pSpec;
     for ( i = p->pPars->nVars; i < p->nObjs; i++ )
     {
         int nFanins = Zyx_ManCollectFanins( p, i );
+        (void)nFanins;
         assert( nFanins == p->pPars->nLutSize );
         for ( k = 0; k < p->pPars->nLutSize; k++ )
             pFaninsW[k] = Zyx_ManTruth( p, p->pFanins[i][k] );
@@ -1517,4 +1522,3 @@ void Zyx_TestExact( char * pFileName )
 
 
 ABC_NAMESPACE_IMPL_END
-

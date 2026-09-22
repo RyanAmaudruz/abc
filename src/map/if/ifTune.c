@@ -907,7 +907,7 @@ void If_ManConfigPrint( unsigned char * pConfigData, int nLeaves )
 {
     unsigned char CellId = pConfigData[0];
     int i;
-    static int Count = 0;
+    static ABC_THREAD_LOCAL int Count = 0;
     printf( "[%4d] ", Count++ );  // Print instance number
     if ( CellId == 0 )
     {
@@ -1175,7 +1175,7 @@ void * If_ManDeriveGiaFromCells2( void * pGia )
             else if ( v >= 2 && v < 2 + Vec_IntSize(vLeaves) )
                 iSelectLit = Vec_IntEntry(vLeaves, v - 2);  // select from leaf (v-2)
             else
-                assert( 0 );  // Invalid value
+                { assert( 0 ); abort(); }  // Invalid value
             iObjLit3 = Gia_ManHashMux( pNew, iSelectLit, iObjLit2, iObjLit1 );
             Gia_ManObj(p, iLut)->Value = iObjLit3;
             Vec_IntFree( vLeavesTemp );
@@ -1368,6 +1368,7 @@ void Ifn_NtkAddConstraints( Ifn_Ntk_t * p, sat_solver * pSat )
     {
         int i, k, pVars[IFN_INS];
         int RetValue = Kit_TruthIsop( (unsigned *)&uTruth, p->nParsVNum, vCover, 0 );
+        (void)RetValue;
         assert( RetValue == 0 );
 //        Dau_DsdPrintFromTruth( &uTruth, p->nParsVNum );
         // add capacity constraints

@@ -612,8 +612,8 @@ void Gia_ManPrintMappingStats( Gia_Man_t * p, char * pDumpFile )
     //return;
     if ( pDumpFile )
     {
-        static char FileNameOld[1000] = {0};
-        static abctime clk = 0;
+        static ABC_THREAD_LOCAL char FileNameOld[1000] = {0};
+        static ABC_THREAD_LOCAL abctime clk = 0;
         FILE * pTable = fopen( pDumpFile, "a+" );
         if ( strcmp( FileNameOld, p->pName ) )
         {
@@ -1371,7 +1371,7 @@ int Gia_ManFromIfLogicNode( void * pIfMan, Gia_Man_t * pNew, int iObj, Vec_Int_t
     {
         extern int If_CluMinimumBase( word * t, int * pSupp, int nVarsAll, int * pnVars );
 
-        static word TruthStore[16][1<<10] = {{0}}, * pTruths[16];
+        static ABC_THREAD_LOCAL word TruthStore[16][1<<10] = {{0}}, * pTruths[16];
         word Func0, Func1, Func2;
         char pLut0[32], pLut1[32], pLut2[32] = {0};
 
@@ -1595,6 +1595,7 @@ int Gia_ManFromIfLogicHop( Gia_Man_t * pNew, If_Man_t * pIfMan, If_Cut_t * pCutB
 
     // convert the LUT-structure into a set of logic nodes in Gia_Man_t 
     unsigned char bytes_check = decompArray[0];
+    (void)bytes_check;
     assert( bytes_check <= 92 );
 
     int byte_p = 2;
@@ -1911,7 +1912,7 @@ void Gia_ManFromIfGetConfig( Vec_Int_t * vConfigs, If_Man_t * pIfMan, If_Cut_t *
 ***********************************************************************/
 void Gia_ManConfigPrint( word Truth4, word z, int nLeaves )
 {
-    static int Count = 0;
+    static ABC_THREAD_LOCAL int Count = 0;
     int i;
     printf( "[%4d] Encoding (nLeaves=%d): ", Count++, nLeaves );
     // Simple LUT4 case (Truth4 != 0, z == 0)
@@ -2018,7 +2019,7 @@ void Gia_ManConfigPrint2( unsigned char * pConfigData, int nLeaves )
 {
     unsigned char CellId = pConfigData[0];
     int i;
-    static int Count = 0;
+    static ABC_THREAD_LOCAL int Count = 0;
     printf( "%6d : ", Count++ );  // Print instance number
     printf( "[Cell %d with %d leaves]  ", CellId, nLeaves );
     if ( CellId == 0 )
@@ -2158,6 +2159,7 @@ void Gia_ManFromIfGetConfig2( Vec_Str_t * vConfigs2, If_Man_t * pIfMan, word * p
     int i, CellId;
     int startPos = Vec_StrSize(vConfigs2);
     If_LibCell_t * pCellLib = pIfMan && pIfMan->pPars ? pIfMan->pPars->pCellLib : NULL;
+    (void)pCellLib;
     assert( pCellLib != NULL );
 
     // Determine cell type based on the number of leaves and configuration
@@ -3038,6 +3040,7 @@ Gia_Man_t * Gia_ManPerformMappingInt( Gia_Man_t * p, If_Par_t * pPars )
     if ( pPars->fUseDsd )
     {
         If_DsdMan_t * p = (If_DsdMan_t *)Abc_FrameReadManDsd();
+        (void)p;
         assert( pPars->nLutSize <= If_DsdManVarNum(p) );
         assert( (pPars->pLutStruct == NULL && If_DsdManLutSize(p) == 0) || (pPars->pLutStruct && pPars->pLutStruct[0] - '0' == If_DsdManLutSize(p)) );
         pIfMan->pIfDsdMan = (If_DsdMan_t *)Abc_FrameReadManDsd();

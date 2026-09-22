@@ -164,7 +164,7 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
     FILE * pFile;
     If_LibBox_t * p = NULL;
     If_Box_t * pBox = NULL;
-    char * pToken, * pName;
+    char * pToken, * pName, * pSave = NULL;
     int fSeq, fBlack, fOuter;
     int i, Id, nPis, nPos;
     pFile = fopen( pFileName, "rb" );
@@ -176,9 +176,14 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
     // read lines
     nPis = nPos = 0;
     pBuffer = ABC_ALLOC( char, nSize );
+    if ( pBuffer == NULL )
+    {
+        fclose( pFile );
+        return NULL;
+    }
     while ( fgets( pBuffer, nSize, pFile ) )
     {
-        pToken = strtok( pBuffer, " \n\r\t" );
+        pToken = Abc_UtilStrtok( pBuffer, " \n\r\t", &pSave );
         if ( pToken == NULL )
             continue;
         if ( pToken[0] == '.' )
@@ -186,20 +191,20 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
             if ( !strcmp(pToken, ".box") )
             {
                 // save ID
-                pToken = strtok( NULL, " \n\r\t" );
+                pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 Id     = atoi( pToken );
                 // save name
-                pToken = strtok( NULL, " \n\r\t" );
+                pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 pName  = Abc_UtilStrsav(pToken);
                 // save PIs
-                pToken = strtok( NULL, " \n\r\t" );
+                pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 nPis   = atoi( pToken );
                 // save POs
-                pToken = strtok( NULL, " \n\r\t" );
+                pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 nPos   = atoi( pToken );
                 // save attributes
                 fSeq = fBlack = fOuter = 0;
-                pToken = strtok( NULL, " \n\r\t" );
+                pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 while ( pToken )
                 {
                     if ( !strcmp(pToken, "seq") )
@@ -209,7 +214,7 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
                     else if ( !strcmp(pToken, "outer") )
                         fOuter = 1;
                     else assert( !strcmp(pToken, "comb") || !strcmp(pToken, "white") || !strcmp(pToken, "inner") );
-                    pToken = strtok( NULL, " \n\r\t" );
+                    pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
                 }
                 // create library
                 if ( p == NULL )
@@ -228,10 +233,10 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
             {
                 if ( fgets( pBuffer, nSize, pFile ) == NULL )
                 { printf( "The table does not have enough entries.\n" ); fflush(stdout); assert( 0 ); }
-                pToken = strtok( pBuffer, " \n\r\t" );
+                pToken = Abc_UtilStrtok( pBuffer, " \n\r\t", &pSave );
             }
             pBox->pDelays[i] = (pToken[0] == '-') ? -1 : atoi(pToken);
-            pToken = strtok( NULL, " \n\r\t" );
+            pToken = Abc_UtilStrtok( NULL, " \n\r\t", &pSave );
         }
         pBox = NULL;
     }
@@ -254,7 +259,7 @@ If_LibBox_t * If_LibBoxRead2( char * pFileName )
 ***********************************************************************/
 char * If_LibBoxGetToken( FILE * pFile )
 {
-    static char pBuffer[1000];
+    static ABC_THREAD_LOCAL char pBuffer[1000];
     int c; char * pTemp = pBuffer;
     while ( (c = fgetc(pFile)) != EOF )
     {
@@ -404,4 +409,3 @@ int If_LibBoxLoad( char * pFileName )
 
 
 ABC_NAMESPACE_IMPL_END
-

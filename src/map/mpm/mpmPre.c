@@ -564,7 +564,7 @@ int Ifd_ManFindDsd_rec( Ifd_Man_t * pMan, char * pStr, char ** p, int * pMatches
 #define IFM_MAX_VAR   16
 int * Ifd_ManComputeMatches( char * p )
 {
-    static int pMatches[IFM_MAX_STR];
+    static ABC_THREAD_LOCAL int pMatches[IFM_MAX_STR];
     int pNested[IFM_MAX_VAR];
     int v, nNested = 0;
     for ( v = 0; p[v]; v++ )
@@ -736,7 +736,7 @@ Vec_Int_t * Ifd_ManDsdPermJT( int n )
                 dir[i] = !dir[i];
         max = n;
         for (i = 0; i < n; i++)
-            if (((!dir[i] && i != 0 && array[i] > array[i-1]) || (dir[i] && i != n-1 && array[i] > array[i+1])) && (array[i] > array[max] || max == n))
+            if (((!dir[i] && i != 0 && array[i] > array[i-1]) || (dir[i] && i != n-1 && array[i] > array[i+1])) && (max == n || array[i] > array[max]))
                 max = i;
     } 
     while (max < n);
@@ -1026,4 +1026,3 @@ int Ifd_ManDsdTest55()
 
 
 ABC_NAMESPACE_IMPL_END
-

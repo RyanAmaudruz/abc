@@ -381,7 +381,7 @@ char * Wlc_PrsStrtok( char * s, const char * delim )
   const char *spanp;
   int c, sc;
   char *tok;
-  static char *last;
+  static ABC_THREAD_LOCAL char *last;
   if (s == NULL && (s = last) == NULL)
       return NULL;
   // skip leading delimiters
@@ -547,7 +547,7 @@ static inline char * Wlc_PrsFindWord( char * pStr, char * pWord, int * fFound )
 }
 static inline char * Wlc_PrsFindName( char * pStr, char ** ppPlace )
 {
-    static char Buffer[WLV_PRS_MAX_LINE];
+    static ABC_THREAD_LOCAL char Buffer[WLV_PRS_MAX_LINE];
     char * pThis = *ppPlace = Buffer;
     int fNotName = 1, Count = 0;
     pStr = Wlc_PrsSkipSpaces( pStr );
@@ -982,7 +982,8 @@ startword:
             {
                 // THIS IS A HACK to detect table module descriptions
                 int Width1 = -1, Width2 = -1;
-                int v, b, Value, nBits, nInts;
+                int v, b, nBits, nInts;
+                word Value;
                 unsigned * pTable;
                 Vec_Int_t * vValues = Vec_IntAlloc( 256 );
                 Wlc_PrsForEachLineStart( p, pStart, i, i+1 )
@@ -997,9 +998,15 @@ startword:
                     if ( pStart == NULL )
                         continue;
                     Width2 = atoi(pStart-1);
+                    for ( v = 0; Abc_TtIsHexDigit(pStart[2+v]); v++ ) {}
+                    if ( v > 16 )
+                    {
+                        Vec_IntFree( vValues );
+                        return Wlc_PrsWriteErrorMessage( p, pStart, "Table constant is too wide in module \"%s\".", pName );
+                    }
                     Value = 0;
-                    Abc_TtReadHexNumber( (word *)&Value, pStart+2 );
-                    Vec_IntPush( vValues, Value );
+                    Abc_TtReadHexNumber( &Value, pStart+2 );
+                    Vec_IntPush( vValues, (int)Value );
                 }
                 //Vec_IntPrint( vValues );
                 nBits = Abc_Base2Log( Vec_IntSize(vValues) );
@@ -1769,4 +1776,3 @@ void Io_ReadWordTest( char * pFileName )
 
 
 ABC_NAMESPACE_IMPL_END
-

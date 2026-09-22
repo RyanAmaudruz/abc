@@ -41,10 +41,10 @@ ABC_NAMESPACE_IMPL_START
  *  Purpose: get option letter from argv.
  */
 
-const char * globalUtilOptarg;        // Global argument pointer (util_optarg)
-int    globalUtilOptind = 0;    // Global argv index (util_optind)
+ABC_THREAD_LOCAL const char * globalUtilOptarg;        // Global argument pointer (util_optarg)
+ABC_THREAD_LOCAL int    globalUtilOptind = 0;    // Global argv index (util_optind)
 
-static const char *pScanStr;
+static ABC_THREAD_LOCAL const char *pScanStr;
 
 ////////////////////////////////////////////////////////////////////////
 ///                     FUNCTION DEFINITIONS                         ///
@@ -158,7 +158,7 @@ int Extra_UtilGetopt( int argc, char *argv[], const char *optstring )
 ***********************************************************************/
 char * Extra_UtilPrintTime( long t )
 {
-    static char s[40];
+    static ABC_THREAD_LOCAL char s[40];
 
     (void) sprintf(s, "%ld.%02ld sec", t/1000, (t%1000)/10);
     return s;
@@ -274,6 +274,9 @@ char * Extra_UtilFileSearch(char *file, char *path, char *mode)
     int quit;
     char *buffer, *filename, *save_path, *cp;
 
+    if (file == NULL || mode == NULL)
+        return NULL;
+
     if (path == 0 || strcmp(path, "") == 0) {
     path = ".";        /* just look in the current directory */
     }
@@ -292,8 +295,12 @@ char * Extra_UtilFileSearch(char *file, char *path, char *mode)
     if (strcmp(path, ".") == 0) {
         buffer = Extra_UtilStrsav(file);
     } else {
-        buffer = ABC_ALLOC(char, strlen(path) + strlen(file) + 4);
-        (void) sprintf(buffer, "%s/%s", path, file);
+        size_t nPath = strlen(path), nFile = strlen(file);
+        buffer = ABC_ALLOC(char, nPath + nFile + 2);
+        if (buffer == NULL) { ABC_FREE(save_path); return NULL; }
+        memcpy(buffer, path, nPath);
+        buffer[nPath] = '/';
+        memcpy(buffer + nPath + 1, file, nFile + 1);
     }
     filename = Extra_UtilTildeExpand(buffer);
     ABC_FREE(buffer);
@@ -347,7 +354,7 @@ void Extra_UtilMMout_Of_Memory( long size )
   SeeAlso     []
 
 ***********************************************************************/
-void (*Extra_UtilMMoutOfMemory)( long size ) = (void (*)( long size ))Extra_UtilMMout_Of_Memory;
+ABC_THREAD_LOCAL void (*Extra_UtilMMoutOfMemory)( long size ) = (void (*)( long size ))Extra_UtilMMout_Of_Memory;
 
 
 /**Function*************************************************************
@@ -430,4 +437,3 @@ void Extra_MemTest()
 
 
 ABC_NAMESPACE_IMPL_END
-

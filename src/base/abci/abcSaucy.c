@@ -35,10 +35,6 @@ ABC_NAMESPACE_IMPL_START
 #define BACKTRACK_BY_SAT    1
 #define SELECT_DYNAMICALLY  0
 
-/* number of iterations for sim1 and sim2 refinements */
-int NUM_SIM1_ITERATION;
-int NUM_SIM2_ITERATION;
-
 /* conflict analysis */
 #define CLAUSE_DECAY 0.9
 #define MAX_LEARNTS  50
@@ -189,6 +185,8 @@ struct saucy {
     int fBooleanMatching;
     int fPrintTree;
     int fLookForSwaps;
+    int nSim1Iterations;
+    int nSim2Iterations;
     FILE * gFile;
     
     int (*refineBySim1)(struct saucy *, struct coloring *);
@@ -1215,7 +1213,7 @@ refineBySim1_init(struct saucy *s, struct coloring *c)
 
     if (Abc_NtkPoNum(s->pNtk) == 1) return 1;
     
-    for (i = 0; i < NUM_SIM1_ITERATION; i++) {
+    for (i = 0; i < s->nSim1Iterations; i++) {
 
         /* if all outputs are distinguished, quit */
         allOutputsAreDistinguished = 1;
@@ -1269,7 +1267,7 @@ refineBySim1_left(struct saucy *s, struct coloring *c)
 
     if (Abc_NtkPoNum(s->pNtk) == 1) return 1;
     
-    for (i = 0; i < NUM_SIM1_ITERATION; i++) {
+    for (i = 0; i < s->nSim1Iterations; i++) {
 
         /* if all outputs are distinguished, quit */
         allOutputsAreDistinguished = 1;
@@ -1372,7 +1370,7 @@ refineBySim2_init(struct saucy *s, struct coloring *c)
     int i, j;
     int nsplits;    
     
-    for (i = 0; i < NUM_SIM2_ITERATION; i++) {
+    for (i = 0; i < s->nSim2Iterations; i++) {
         randVec = assignRandomBitsToCells(s->pNtk, c);      
         g = buildSim2Graph(s->pNtk, c, randVec, s->iDep, s->oDep, s->topOrder, s->obs,  s->ctrl);
         assert(g != NULL);
@@ -1412,7 +1410,7 @@ refineBySim2_left(struct saucy *s, struct coloring *c)
     int i, j;
     int nsplits;    
     
-    for (i = 0; i < NUM_SIM2_ITERATION; i++) {
+    for (i = 0; i < s->nSim2Iterations; i++) {
         randVec = assignRandomBitsToCells(s->pNtk, c);      
         g = buildSim2Graph(s->pNtk, c, randVec, s->iDep, s->oDep, s->topOrder, s->obs,  s->ctrl);
         assert(g != NULL);
@@ -2522,7 +2520,7 @@ saucy_free(struct saucy *s)
     ABC_FREE(s->gamma);
     ABC_FREE(s->start);
     ABC_FREE(s->prevnon);
-    free(s->nextnon-1);
+    free(s->nextnon ? s->nextnon-1 : NULL);
     ABC_FREE(s->clist);
     ABC_FREE(s->ccount);
     ABC_FREE(s->count);
@@ -2594,7 +2592,8 @@ saucy_alloc(Abc_Ntk_t * pNtk)
     s->count = ints(n+1);
     s->ccount = zeros(n);
     s->clist = ints(n);
-    s->nextnon = ints(n+1) + 1;
+    s->nextnon = ints(n+1);
+    if ( s->nextnon ) s->nextnon++;
     s->prevnon = ints(n+1);
     s->anctar = ints(n);
     s->start = ints(n);
@@ -2653,7 +2652,7 @@ saucy_alloc(Abc_Ntk_t * pNtk)
         && s->right.cfront && s->right.clen
         && s->stuff && s->bucket && s->count && s->ccount
         //&& s->clist && s->nextnon-1 && s->prevnon
-        && s->clist && s->nextnon[-1] && s->prevnon
+        && s->clist && s->nextnon && s->prevnon
         && s->start && s->gamma && s->theta && s->left.unlab
         && s->right.lab && s->right.unlab
         && s->left.lab &&  s->splitvar && s->splitwho && s->junk
@@ -3299,11 +3298,11 @@ void saucyGateWay( Abc_Ntk_t * pNtkOrig, Abc_Obj_t * pNodePo, FILE * gFile, int 
     /* Are we looking for Boolean matching? */
     s->fBooleanMatching = fBooleanMatching;
     if (fBooleanMatching) {
-        NUM_SIM1_ITERATION = 50;
-        NUM_SIM2_ITERATION = 50;
+        s->nSim1Iterations = 50;
+        s->nSim2Iterations = 50;
     } else {
-        NUM_SIM1_ITERATION = 200;
-        NUM_SIM2_ITERATION = 200;
+        s->nSim1Iterations = 200;
+        s->nSim2Iterations = 200;
     }
 
     /* Set the print automorphism routine */
@@ -3345,5 +3344,3 @@ void saucyGateWay( Abc_Ntk_t * pNtkOrig, Abc_Obj_t * pNodePo, FILE * gFile, int 
     ABC_PRT( "Runtime", clock() - clk );
 
 }ABC_NAMESPACE_IMPL_END
-
-

@@ -1066,7 +1066,7 @@ void Cec5_ManPrintTfiConeStats( Gia_Man_t * p )
 }
 void Cec5_ManPrintStats( Gia_Man_t * p, Cec_ParFra_t * pPars, Cec5_Man_t * pMan, int fSim )
 {
-    static abctime clk = 0;
+    static ABC_THREAD_LOCAL abctime clk = 0;
     abctime clkThis = 0;
     int i, nLits, Counter = 0, Counter0 = 0, CounterX = 0;
     if ( !pPars->fVerbose )
@@ -1669,6 +1669,7 @@ int Cec5_ManSolveTwo( Cec5_Man_t * p, int iObj0, int iObj1, int fPhase, int * pf
 void Cec5_FlushCache2Pattern( Cec5_Man_t * p ){
     int j, iLit, nWrite = 0;
     int iPatsOld = p->pAig->iPatsPi;
+    (void)iPatsOld;
     j = 0;
     p->pAig->iPatsPi -- ;
     while( j < p->vPiPatsCache->nSize ){
@@ -2341,4 +2342,3 @@ Gia_Man_t * Cec5_ManSimulateTest3( Gia_Man_t * p, int nBTLimit, int fVerbose )
 
 
 ABC_NAMESPACE_IMPL_END
-

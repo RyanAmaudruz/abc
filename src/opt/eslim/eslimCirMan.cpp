@@ -563,11 +563,8 @@ namespace eSLIM {
       int id = Gia_ManAppendCo( pNew, fanin0 );
       node_ids[i] = id;
     }
-
-    // Rehash before returning: without structural hashing, ANDs that become trivial
-    // under hashing (e.g. AND(x,!x)->const) remain as unreachable nodes after
-    // Gia_ManToAig, which causes Aig_ManDupDfs / Aig_ManDfs to assert during
-    // inprocessing (DeepSyn / &dch).
+    // Gates may become unreachable due to constant gates,
+    // potentially causing the inprocessing step to fail.
     Gia_Man_t * pStrash = Gia_ManRehash( pNew, 0 );
     Gia_ManStop( pNew );
     return pStrash;
@@ -876,6 +873,7 @@ namespace eSLIM {
     int size_diff = subcir.nodes.size() - replacement.getNofGates(); 
     if (nodes_aux.size() + size_diff != nodes.size()) { 
       int nredundant = processRedundant(subcir);
+      (void)nredundant;
       assert(nodes_aux.size() + size_diff + nredundant == nodes.size());
     }
     std::swap(nodes, nodes_aux);
