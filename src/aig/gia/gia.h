@@ -1294,6 +1294,15 @@ extern Gia_Man_t *         Gia_ManAigSyn4( Gia_Man_t * p, int fVerbose, int fVer
 /*=== giaBidec.c ===========================================================*/
 extern unsigned *          Gia_ManConvertAigToTruth( Gia_Man_t * p, Gia_Obj_t * pRoot, Vec_Int_t * vLeaves, Vec_Int_t * vTruth, Vec_Int_t * vVisited );
 extern Gia_Man_t *         Gia_ManPerformBidec( Gia_Man_t * p, int fVerbose );
+/*=== giaDeep.c ============================================================*/
+typedef enum {
+    GIA_DEEPSYN_AREA     = 0,
+    GIA_DEEPSYN_BALANCED = 1,
+    GIA_DEEPSYN_DELAY    = 2,
+    GIA_DEEPSYN_TARGET   = 3
+} Gia_DeepSynObj_t;
+extern Gia_Man_t *         Gia_ManDeepSyn( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose, Gia_DeepSynObj_t Obj );
+extern Gia_Man_t *         Gia_ManDeepSyn2( Gia_Man_t * pGia, int nIters, int nNoImpr, int TimeOut, int nAnds, int Seed, int fUseTwo, int fChoices, int fVerbose );
 /*=== giaCex.c ============================================================*/
 extern int                 Gia_ManVerifyCex( Gia_Man_t * pAig, Abc_Cex_t * p, int fDualOut );
 extern int                 Gia_ManFindFailedPoCex( Gia_Man_t * pAig, Abc_Cex_t * p, int nOutputs );
